@@ -1,17 +1,14 @@
 // ============================================
 // Firebase wiring for Poshaná enquiry forms.
-//
-// TODO: replace this placeholder config with the real one from the
-// Firebase console (Project settings > General > Your apps > Web app).
 // Leads are written to the "enquiries" collection in Firestore.
 // ============================================
 const firebaseConfig = {
-  apiKey: "REPLACE_WITH_API_KEY",
-  authDomain: "REPLACE_WITH_PROJECT.firebaseapp.com",
-  projectId: "REPLACE_WITH_PROJECT",
-  storageBucket: "REPLACE_WITH_PROJECT.firebasestorage.app",
-  messagingSenderId: "REPLACE_WITH_SENDER_ID",
-  appId: "REPLACE_WITH_APP_ID",
+  apiKey: "AIzaSyA6q2cN75_iHY9-hzyb6C6gObjrUBFOH94",
+  authDomain: "poshana-36204.firebaseapp.com",
+  projectId: "poshana-36204",
+  storageBucket: "poshana-36204.firebasestorage.app",
+  messagingSenderId: "658965368041",
+  appId: "1:658965368041:web:c19e0d85e79a8a5e013478",
 };
 
 const isConfigured = !Object.values(firebaseConfig).some((v) => v.startsWith('REPLACE_WITH'));

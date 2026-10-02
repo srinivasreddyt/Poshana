@@ -441,19 +441,24 @@ p { margin: 0 0 1em; color: var(--text-muted); }
 }
 
 /* ============ Schedule table ============ */
+.table-scroll {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .schedule-table {
   width: 100%;
+  min-width: 420px;
   border-collapse: collapse;
   background: var(--paper);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  box-shadow: var(--shadow);
 }
 .schedule-table th, .schedule-table td {
   padding: 16px 18px;
   text-align: center;
   border-bottom: 1px solid var(--border);
   font-size: 0.92rem;
+  white-space: nowrap;
 }
 .schedule-table thead th {
   background: var(--green-800);
@@ -465,8 +470,17 @@ p { margin: 0 0 1em; color: var(--text-muted); }
 }
 .schedule-table tbody tr:last-child td { border-bottom: none; }
 .schedule-table tbody tr.cheat-day { background: var(--green-100); }
-.schedule-table tbody tr.cheat-day td { font-weight: 600; color: var(--green-800); }
+.schedule-table tbody tr.cheat-day td { font-weight: 600; color: var(--green-800); white-space: normal; }
 .schedule-table td.day-name { font-weight: 600; text-align: left; color: var(--green-900); }
+
+@media (max-width: 480px) {
+  .schedule-table { min-width: 0; }
+  .schedule-table th, .schedule-table td {
+    padding: 10px 8px;
+    font-size: 0.78rem;
+  }
+  .schedule-table thead th { font-size: 0.62rem; padding: 10px 6px; }
+}
 
 /* ============ Values / mission ============ */
 .mission-strip {
