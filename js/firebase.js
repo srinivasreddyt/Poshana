@@ -37,7 +37,10 @@ async function submitEnquiry(data, source) {
   await addDoc(collection(firestore, 'enquiries'), {
     ...data,
     source,
+    status: 'new',
+    adminComment: '',
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
 }
 

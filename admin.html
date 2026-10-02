@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin | Poshaná</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body class="admin-body">
+
+<!-- Login screen -->
+<div id="login-screen" class="admin-login">
+  <div class="admin-login-card">
+    <span class="brand-mark"><img src="assets/logo-icon.png" alt="Poshaná logo"></span>
+    <h1>Admin Access</h1>
+    <p>Enter your PIN to manage enquiries.</p>
+    <form id="pin-form">
+      <input type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="6" id="pin-input" class="pin-input" placeholder="••••••" required>
+      <button type="submit" class="btn btn-primary btn-block">Unlock</button>
+    </form>
+    <p id="login-error" class="admin-error"></p>
+  </div>
+</div>
+
+<!-- Admin app -->
+<div id="admin-app" class="admin-app" hidden>
+  <aside class="admin-sidebar">
+    <a href="index.html" class="brand">
+      <span class="brand-mark"><img src="assets/logo-icon.png" alt="Poshaná logo"></span>
+      <span class="brand-text">Poshaná<small>Admin Panel</small></span>
+    </a>
+    <nav class="admin-nav">
+      <button class="admin-nav-item active" data-tab="enquiries">📋 Enquiries</button>
+    </nav>
+    <button id="logout-btn" class="admin-logout">Log out</button>
+  </aside>
+
+  <main class="admin-main">
+    <section id="tab-enquiries">
+      <div class="admin-topbar">
+        <h1>Enquiries</h1>
+        <div class="admin-stats">
+          <div class="admin-stat"><strong id="stat-total">0</strong><span>Total</span></div>
+          <div class="admin-stat"><strong id="stat-new">0</strong><span>New</span></div>
+          <div class="admin-stat"><strong id="stat-closed">0</strong><span>Closed</span></div>
+        </div>
+      </div>
+
+      <div class="admin-filters">
+        <div class="status-pills">
+          <button class="status-pill active" data-status-filter="all">All</button>
+          <button class="status-pill" data-status-filter="new">New</button>
+          <button class="status-pill" data-status-filter="closed">Closed</button>
+        </div>
+
+        <input type="search" id="search-input" placeholder="Search name or phone…">
+
+        <select id="date-filter-type">
+          <option value="all">All time</option>
+          <option value="day">Specific day</option>
+          <option value="month">Specific month</option>
+          <option value="year">Specific year</option>
+        </select>
+        <input type="date" id="date-filter-day" hidden>
+        <input type="month" id="date-filter-month" hidden>
+        <input type="number" id="date-filter-year" placeholder="e.g. 2026" min="2020" max="2100" hidden>
+
+        <div class="admin-filter-spacer"></div>
+        <button id="clear-filters-btn" class="btn-clear-filters">Clear filters</button>
+      </div>
+
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Plan</th>
+              <th>Source</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="enquiries-tbody"></tbody>
+        </table>
+        <p id="loading-state" class="admin-loading">Loading enquiries…</p>
+        <p id="empty-state" class="admin-empty" hidden>No enquiries match these filters.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Detail drawer -->
+<div id="detail-drawer" class="admin-drawer" hidden>
+  <div class="admin-drawer-backdrop" id="drawer-backdrop"></div>
+  <div class="admin-drawer-panel">
+    <button class="admin-drawer-close" id="drawer-close">&times;</button>
+    <div class="drawer-badge-row"><span id="drawer-badge" class="badge badge-new">New</span></div>
+    <h2 id="drawer-name">—</h2>
+
+    <div class="drawer-meta-row"><span>Phone</span><span id="drawer-phone">—</span></div>
+    <div class="drawer-meta-row"><span>Email</span><span id="drawer-email">—</span></div>
+    <div class="drawer-meta-row"><span>Plan interest</span><span id="drawer-plan">—</span></div>
+    <div class="drawer-meta-row"><span>Source</span><span id="drawer-source">—</span></div>
+    <div class="drawer-meta-row"><span>Submitted</span><span id="drawer-date">—</span></div>
+
+    <span class="drawer-section-label" id="drawer-message-label" hidden>Message</span>
+    <div class="drawer-message-box" id="drawer-message" hidden></div>
+
+    <span class="drawer-section-label">Status</span>
+    <div class="status-toggle">
+      <button type="button" data-status="new">Mark as New</button>
+      <button type="button" data-status="closed">Mark as Closed</button>
+    </div>
+
+    <span class="drawer-section-label">Admin comment</span>
+    <textarea id="drawer-comment" class="drawer-comment" placeholder="Add a note about this enquiry…"></textarea>
+    <div class="drawer-save-row">
+      <button id="save-drawer-btn" class="btn btn-primary">Save changes</button>
+      <span id="drawer-save-status" class="drawer-save-status"></span>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/admin.js"></script>
+</body>
+</html>
