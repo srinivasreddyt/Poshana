@@ -186,7 +186,7 @@ p { margin: 0 0 1em; color: var(--text-muted); }
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 30px;
+  gap: 22px;
 }
 .nav-links a {
   font-size: 0.92rem;
@@ -195,6 +195,7 @@ p { margin: 0 0 1em; color: var(--text-muted); }
   color: var(--text);
   position: relative;
   padding: 6px 0;
+  white-space: nowrap;
 }
 .nav-links a:hover, .nav-links a.active { color: var(--green-700); }
 .nav-links a.active::after {
@@ -663,6 +664,57 @@ p { margin: 0 0 1em; color: var(--text-muted); }
 .faq-item.open .faq-a { max-height: 240px; padding-bottom: 20px; }
 .faq-a p { margin: 0; font-size: 0.92rem; }
 
+/* ============ Branches ============ */
+.branch-card {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  box-shadow: var(--shadow);
+}
+.branch-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.branch-city {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  color: var(--green-900);
+  margin: 0;
+}
+.branch-status {
+  display: inline-block;
+  background: var(--green-700);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.branch-info-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.92rem;
+}
+.branch-info-row:first-of-type { border-top: none; }
+.branch-info-row a { color: var(--green-800); font-weight: 600; }
+.branch-info-row a:hover { color: var(--green-700); }
+.branch-empty, .branch-loading {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
 /* ============ Utility ============ */
 .text-center { text-align: center; }
 .mt-0 { margin-top: 0; }
@@ -687,7 +739,7 @@ p { margin: 0 0 1em; color: var(--text-muted); }
 
 .nav-links-mobile { display: none; }
 
-@media (max-width: 720px) {
+@media (max-width: 960px) {
   .nav-links, .nav-phone-text { display: none; }
   .nav-cta .btn-primary { display: none; }
   .nav-links.open {
@@ -702,6 +754,9 @@ p { margin: 0 0 1em; color: var(--text-muted); }
   }
   .nav-links-mobile { display: block; }
   .nav-toggle { display: flex; }
+}
+
+@media (max-width: 720px) {
   .grid-3, .grid-4, .grid-2 { grid-template-columns: 1fr; }
   .feature-strip { grid-template-columns: 1fr 1fr; }
   .form-row { grid-template-columns: 1fr; }
