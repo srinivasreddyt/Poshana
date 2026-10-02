@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contact Us | Poshaná</title>
+<meta name="description" content="Get in touch with Poshaná — reserve your spot in Bhimavaram, book a dietician consultation, or ask about our meal plans.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 48 48%22><circle cx=%2224%22 cy=%2224%22 r=%2224%22 fill=%22%23284a2b%22/><text x=%2224%22 y=%2233%22 text-anchor=%22middle%22 font-family=%22Georgia,serif%22 font-size=%2226%22 font-weight=%22700%22 fill=%22%23fff%22>P</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <nav class="nav">
+    <a href="index.html" class="brand">
+      <svg class="brand-mark" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="24" cy="24" r="24" fill="var(--green-100)"/>
+        <text x="24" y="32" text-anchor="middle" font-family="Fraunces, serif" font-size="24" font-weight="700" fill="var(--green-900)">P</text>
+        <ellipse cx="35" cy="10" rx="6" ry="3" fill="var(--green-600)" transform="rotate(-35 35 10)"/>
+      </svg>
+      <span class="brand-text">Poshaná<small>Wellness in Every Bite</small></span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="plans.html">Meal Plans</a></li>
+      <li><a href="dietician.html">Dietician Consultation</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="contact.html">Contact</a></li>
+      <li class="nav-links-mobile"><a href="tel:+917416242883">📞 +91 7416242883</a></li>
+      <li class="nav-links-mobile"><a href="contact.html#enquire" class="btn btn-primary btn-block">Enquire Now</a></li>
+    </ul>
+    <div class="nav-cta">
+      <a href="tel:+917416242883" class="nav-phone nav-phone-text">📞 +91 7416242883</a>
+      <a href="contact.html#enquire" class="btn btn-primary">Enquire Now</a>
+      <button class="nav-toggle" aria-label="Toggle menu"><span></span><span></span><span></span></button>
+    </div>
+  </nav>
+</header>
+
+<section class="page-header">
+  <div class="container">
+    <div class="breadcrumb"><a href="index.html">Home</a> / Contact</div>
+    <span class="eyebrow">We'd love to hear from you</span>
+    <h1>Get in touch</h1>
+    <p>Questions about meal plans, dietician consultation, or when we're launching in your area? Reach out.</p>
+  </div>
+</section>
+
+<section class="section" id="enquire">
+  <div class="container grid-2" style="align-items:start;">
+    <div>
+      <div class="info-block">
+        <div class="info-icon">📞</div>
+        <div>
+          <h4>Call Us</h4>
+          <p><a href="tel:+917416242883">+91 7416242883</a></p>
+        </div>
+      </div>
+      <div class="info-block">
+        <div class="info-icon">📍</div>
+        <div>
+          <h4>Location</h4>
+          <p>Bhimavaram, Andhra Pradesh — opening soon</p>
+        </div>
+      </div>
+      <div class="info-block">
+        <div class="info-icon">🗓️</div>
+        <div>
+          <h4>Delivery Days</h4>
+          <p>Monday – Saturday (Sunday is our day off, and yours for a cheat meal)</p>
+        </div>
+      </div>
+      <iframe class="map-frame" loading="lazy" src="https://maps.google.com/maps?q=Bhimavaram,Andhra%20Pradesh&t=&z=12&ie=UTF8&iwloc=&output=embed" title="Poshaná location — Bhimavaram"></iframe>
+    </div>
+
+    <div class="form-wrap">
+      <h3>Send us an enquiry</h3>
+      <p class="plan-tagline mt-0">We'll get back to you within 24 hours.</p>
+      <form class="enquiry-form" data-source="contact-page">
+        <div class="form-row">
+          <div class="field">
+            <label for="c-name">Full Name</label>
+            <input type="text" id="c-name" name="name" required>
+          </div>
+          <div class="field">
+            <label for="c-phone">Phone Number</label>
+            <input type="tel" id="c-phone" name="phone" required>
+          </div>
+        </div>
+        <div class="field">
+          <label for="c-email">Email (optional)</label>
+          <input type="email" id="c-email" name="email">
+        </div>
+        <div class="field">
+          <label for="c-plan">What are you interested in?</label>
+          <select id="c-plan" name="plan">
+            <option value="Essential">Essential Plan</option>
+            <option value="Balanced">Balanced Plan</option>
+            <option value="Complete Wellness">Complete Wellness Plan</option>
+            <option value="Dietician Consultation">Dietician Consultation Only</option>
+            <option value="General Enquiry">General Enquiry</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="c-message">Message (optional)</label>
+          <textarea id="c-message" name="message" placeholder="Tell us a bit about your goals or questions..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Send Enquiry</button>
+        <p class="form-status"></p>
+        <p class="form-note">By submitting, you agree to be contacted by our team regarding Poshaná plans.</p>
+      </form>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="index.html" class="brand">
+          <svg class="brand-mark" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="24" cy="24" r="24" fill="rgba(255,255,255,0.1)"/>
+            <text x="24" y="32" text-anchor="middle" font-family="Fraunces, serif" font-size="24" font-weight="700" fill="#fff">P</text>
+            <ellipse cx="35" cy="10" rx="6" ry="3" fill="var(--green-300)" transform="rotate(-35 35 10)"/>
+          </svg>
+          <span class="brand-text">Poshaná<small>Wellness in Every Bite</small></span>
+        </a>
+        <p class="footer-about">Customised meal plans with dietician consultation — nourishing people and building healthier communities, one city at a time.</p>
+      </div>
+      <div class="footer-col">
+        <h5>Explore</h5>
+        <ul>
+          <li><a href="plans.html">Meal Plans</a></li>
+          <li><a href="dietician.html">Dietician Consultation</a></li>
+          <li><a href="about.html">About Poshaná</a></li>
+          <li><a href="contact.html">Contact Us</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>What We Offer</h5>
+        <ul>
+          <li>Meals</li>
+          <li>Juices</li>
+          <li>Salads</li>
+          <li>Healthy Snacks</li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Get In Touch</h5>
+        <ul>
+          <li>📞 <a href="tel:+917416242883">+91 7416242883</a></li>
+          <li>📍 Bhimavaram, Andhra Pradesh</li>
+          <li><a href="contact.html#enquire">Send an enquiry →</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© <span class="current-year">2026</span> Poshaná. All rights reserved.</span>
+      <span>Good Food. Better People.</span>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="js/firebase.js"></script>
+<script src="js/script.js"></script>
+</body>
+</html>
