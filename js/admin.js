@@ -126,11 +126,25 @@ const dayInput = document.getElementById('date-filter-day');
 const monthInput = document.getElementById('date-filter-month');
 const yearInput = document.getElementById('date-filter-year');
 
+function todayParts() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return { y, m, d };
+}
+
 dateFilterType.addEventListener('change', () => {
   state.dateType = dateFilterType.value;
   dayInput.hidden = state.dateType !== 'day';
   monthInput.hidden = state.dateType !== 'month';
   yearInput.hidden = state.dateType !== 'year';
+
+  const { y, m, d } = todayParts();
+  if (state.dateType === 'day' && !dayInput.value) dayInput.value = `${y}-${m}-${d}`;
+  if (state.dateType === 'month' && !monthInput.value) monthInput.value = `${y}-${m}`;
+  if (state.dateType === 'year' && !yearInput.value) yearInput.value = `${y}`;
+
   renderTable();
 });
 [dayInput, monthInput, yearInput].forEach((el) => el.addEventListener('input', renderTable));
