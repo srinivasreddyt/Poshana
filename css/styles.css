@@ -666,17 +666,22 @@ p { margin: 0 0 1em; color: var(--text-muted); }
 
 /* ============ Branches ============ */
 .branch-card {
+  min-width: 0;
   background: var(--paper);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 32px;
   box-shadow: var(--shadow);
 }
+@media (max-width: 400px) {
+  .branch-card { padding: 24px 20px; }
+}
 .branch-card-top {
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px 12px;
   margin-bottom: 18px;
 }
 .branch-city {
@@ -706,7 +711,8 @@ p { margin: 0 0 1em; color: var(--text-muted); }
   font-size: 0.92rem;
 }
 .branch-info-row:first-of-type { border-top: none; }
-.branch-info-row a { color: var(--green-800); font-weight: 600; }
+.branch-info-row { min-width: 0; }
+.branch-info-row a { color: var(--green-800); font-weight: 600; overflow-wrap: anywhere; }
 .branch-info-row a:hover { color: var(--green-700); }
 .branch-empty, .branch-loading {
   text-align: center;
