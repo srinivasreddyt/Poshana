@@ -373,6 +373,7 @@ const subState = {
   statusFilter: 'all',
   search: '',
   planFilter: 'all',
+  deFilter: 'all',
   dateType: 'all',
 };
 
@@ -394,6 +395,28 @@ document.getElementById('sub-plan-filter').addEventListener('change', (e) => {
   subState.planFilter = e.target.value;
   renderSubscribersTable();
 });
+
+document.getElementById('sub-de-filter').addEventListener('change', (e) => {
+  subState.deFilter = e.target.value;
+  renderSubscribersTable();
+});
+
+// Rebuilt whenever the delivery executives list changes; keeps the current
+// selection, falling back to "all" if that executive was removed.
+function populateSubDeFilter() {
+  const select = document.getElementById('sub-de-filter');
+  select.innerHTML = '<option value="all">All Executives</option><option value="unassigned">Unassigned</option>';
+  allDeliveryExecs.forEach((de) => {
+    const opt = document.createElement('option');
+    opt.value = de.id;
+    opt.textContent = de.name;
+    select.appendChild(opt);
+  });
+  const stillExists = ['all', 'unassigned'].includes(subState.deFilter)
+    || allDeliveryExecs.some((de) => de.id === subState.deFilter);
+  if (!stillExists) subState.deFilter = 'all';
+  select.value = subState.deFilter;
+}
 
 const subDateFilterType = document.getElementById('sub-date-filter-type');
 const subDayInput = document.getElementById('sub-date-filter-day');
@@ -419,10 +442,12 @@ document.getElementById('sub-clear-filters-btn').addEventListener('click', () =>
   subState.statusFilter = 'all';
   subState.search = '';
   subState.planFilter = 'all';
+  subState.deFilter = 'all';
   subState.dateType = 'all';
   document.querySelectorAll('[data-sub-status-filter]').forEach((b) => b.classList.toggle('active', b.dataset.subStatusFilter === 'all'));
   document.getElementById('sub-search-input').value = '';
   document.getElementById('sub-plan-filter').value = 'all';
+  document.getElementById('sub-de-filter').value = 'all';
   subDateFilterType.value = 'all';
   subDayInput.hidden = subMonthInput.hidden = subYearInput.hidden = true;
   subDayInput.value = subMonthInput.value = subYearInput.value = '';
@@ -465,6 +490,8 @@ function getFilteredSubscribers() {
   return allSubscribers.filter((sub) => {
     if (subState.statusFilter !== 'all' && sub.status !== subState.statusFilter) return false;
     if (subState.planFilter !== 'all' && sub.plan !== subState.planFilter) return false;
+    if (subState.deFilter === 'unassigned' && sub.deliveryExecId) return false;
+    if (subState.deFilter !== 'all' && subState.deFilter !== 'unassigned' && sub.deliveryExecId !== subState.deFilter) return false;
     if (subState.search) {
       const haystack = `${sub.name || ''} ${sub.phone || ''}`.toLowerCase();
       if (!haystack.includes(subState.search)) return false;
@@ -661,6 +688,8 @@ function startListeningDeliveryExecs() {
     loadingState.hidden = true;
     renderDeStats();
     renderDeTable();
+    populateSubDeFilter();
+    renderSubscribersTable();
   }, (err) => {
     loadingState.textContent = 'Could not load delivery executives: ' + err.message;
   });
