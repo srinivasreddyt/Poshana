@@ -358,6 +358,7 @@ function renderSubStats() {
 const subState = {
   statusFilter: 'all',
   search: '',
+  planFilter: 'all',
   dateType: 'all',
 };
 
@@ -372,6 +373,11 @@ document.querySelectorAll('[data-sub-status-filter]').forEach((btn) => {
 
 document.getElementById('sub-search-input').addEventListener('input', (e) => {
   subState.search = e.target.value.trim().toLowerCase();
+  renderSubscribersTable();
+});
+
+document.getElementById('sub-plan-filter').addEventListener('change', (e) => {
+  subState.planFilter = e.target.value;
   renderSubscribersTable();
 });
 
@@ -398,9 +404,11 @@ subDateFilterType.addEventListener('change', () => {
 document.getElementById('sub-clear-filters-btn').addEventListener('click', () => {
   subState.statusFilter = 'all';
   subState.search = '';
+  subState.planFilter = 'all';
   subState.dateType = 'all';
   document.querySelectorAll('[data-sub-status-filter]').forEach((b) => b.classList.toggle('active', b.dataset.subStatusFilter === 'all'));
   document.getElementById('sub-search-input').value = '';
+  document.getElementById('sub-plan-filter').value = 'all';
   subDateFilterType.value = 'all';
   subDayInput.hidden = subMonthInput.hidden = subYearInput.hidden = true;
   subDayInput.value = subMonthInput.value = subYearInput.value = '';
@@ -442,6 +450,7 @@ function matchesSubDateFilter(sub) {
 function getFilteredSubscribers() {
   return allSubscribers.filter((sub) => {
     if (subState.statusFilter !== 'all' && sub.status !== subState.statusFilter) return false;
+    if (subState.planFilter !== 'all' && sub.plan !== subState.planFilter) return false;
     if (subState.search) {
       const haystack = `${sub.name || ''} ${sub.phone || ''}`.toLowerCase();
       if (!haystack.includes(subState.search)) return false;
