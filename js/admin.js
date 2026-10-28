@@ -41,6 +41,8 @@ let allEnquiries = [];
 let unsubscribeSnapshot = null;
 let allSubscribers = [];
 let unsubscribeSubSnapshot = null;
+let allDeliveryExecs = [];
+let unsubscribeDeSnapshot = null;
 
 // ---------- Auth ----------
 pinForm.addEventListener('submit', async (e) => {
@@ -70,6 +72,7 @@ onAuthStateChanged(auth, (user) => {
     adminApp.hidden = false;
     startListening();
     startListeningSubscribers();
+    startListeningDeliveryExecs();
   } else {
     adminApp.hidden = true;
     loginScreen.hidden = false;
@@ -82,8 +85,13 @@ onAuthStateChanged(auth, (user) => {
       unsubscribeSubSnapshot();
       unsubscribeSubSnapshot = null;
     }
+    if (unsubscribeDeSnapshot) {
+      unsubscribeDeSnapshot();
+      unsubscribeDeSnapshot = null;
+    }
     allEnquiries = [];
     allSubscribers = [];
+    allDeliveryExecs = [];
   }
 });
 
@@ -94,6 +102,7 @@ document.querySelectorAll('.admin-nav-item').forEach((btn) => {
     const tab = btn.dataset.tab;
     document.getElementById('tab-enquiries').hidden = tab !== 'enquiries';
     document.getElementById('tab-subscribers').hidden = tab !== 'subscribers';
+    document.getElementById('tab-delivery').hidden = tab !== 'delivery';
   });
 });
 
@@ -344,6 +353,7 @@ function startListeningSubscribers() {
     loadingState.hidden = true;
     renderSubStats();
     renderSubscribersTable();
+    renderDeTable();
   }, (err) => {
     loadingState.textContent = 'Could not load subscribers: ' + err.message;
   });
@@ -497,6 +507,7 @@ function renderSubscribersTable() {
       <td>${formatShortDate(sub.endDate)}</td>
       <td>${formatCurrency(sub.amount)}</td>
       <td><span class="badge ${subStatusBadgeClass[status] || 'badge-new'}">${subStatusLabel[status] || status}</span></td>
+      <td>${escapeHtml(sub.deliveryExecName || '—')}</td>
     `;
     tr.addEventListener('click', () => openSubscriberDrawer(sub.id));
     tbody.appendChild(tr);
@@ -537,6 +548,18 @@ function updateComputedEndPreview() {
 document.getElementById('sub-start-date').addEventListener('input', updateComputedEndPreview);
 document.getElementById('sub-duration').addEventListener('change', updateComputedEndPreview);
 
+function populateDeliveryExecSelect(selectedId) {
+  const select = document.getElementById('sub-delivery-exec');
+  select.innerHTML = '<option value="">Unassigned</option>';
+  allDeliveryExecs.forEach((de) => {
+    const opt = document.createElement('option');
+    opt.value = de.id;
+    opt.textContent = de.name + (de.area ? ' — ' + de.area : '');
+    select.appendChild(opt);
+  });
+  select.value = selectedId || '';
+}
+
 function openSubscriberDrawer(id) {
   activeSubscriberId = id || null;
   const sub = id ? allSubscribers.find((s) => s.id === id) : null;
@@ -551,6 +574,7 @@ function openSubscriberDrawer(id) {
   document.getElementById('sub-duration').value = sub?.durationMonths || '1';
   document.getElementById('sub-amount').value = sub?.amount ?? '';
   document.getElementById('sub-status').value = sub?.status || 'active';
+  populateDeliveryExecSelect(sub?.deliveryExecId || '');
   document.getElementById('sub-notes').value = sub?.notes || '';
   document.getElementById('sub-save-status').textContent = '';
   updateComputedEndPreview();
@@ -586,6 +610,12 @@ subForm.addEventListener('submit', async (e) => {
   const startDate = new Date(startY, startM - 1, startD);
   const endDate = computeEndDate(startDateVal, durationMonths);
 
+  const deliveryExecSelect = document.getElementById('sub-delivery-exec');
+  const deliveryExecId = deliveryExecSelect.value || null;
+  const deliveryExecName = deliveryExecId
+    ? deliveryExecSelect.options[deliveryExecSelect.selectedIndex].textContent
+    : null;
+
   const data = {
     name,
     phone,
@@ -597,6 +627,8 @@ subForm.addEventListener('submit', async (e) => {
     endDate,
     amount: document.getElementById('sub-amount').value ? Number(document.getElementById('sub-amount').value) : null,
     status: document.getElementById('sub-status').value,
+    deliveryExecId,
+    deliveryExecName,
     notes: document.getElementById('sub-notes').value.trim(),
     updatedAt: serverTimestamp(),
   };
@@ -608,6 +640,177 @@ subForm.addEventListener('submit', async (e) => {
       await updateDoc(doc(db, 'subscribers', activeSubscriberId), data);
     } else {
       await addDoc(collection(db, 'subscribers'), { ...data, createdAt: serverTimestamp() });
+    }
+    saveStatus.textContent = 'Saved.';
+  } catch (err) {
+    saveStatus.textContent = 'Could not save: ' + err.message;
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
+
+// ============================================
+// Delivery Executives
+// ============================================
+function startListeningDeliveryExecs() {
+  const loadingState = document.getElementById('de-loading-state');
+  const q = query(collection(db, 'deliveryExecutives'), orderBy('name', 'asc'));
+  unsubscribeDeSnapshot = onSnapshot(q, (snapshot) => {
+    allDeliveryExecs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    loadingState.hidden = true;
+    renderDeStats();
+    renderDeTable();
+  }, (err) => {
+    loadingState.textContent = 'Could not load delivery executives: ' + err.message;
+  });
+}
+
+function renderDeStats() {
+  document.getElementById('de-stat-total').textContent = allDeliveryExecs.length;
+  document.getElementById('de-stat-active').textContent = allDeliveryExecs.filter((d) => d.status !== 'inactive').length;
+}
+
+// ---------- Delivery executive filters ----------
+const deState = {
+  statusFilter: 'all',
+  search: '',
+  vehicleFilter: 'all',
+};
+
+document.querySelectorAll('[data-de-status-filter]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-de-status-filter]').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    deState.statusFilter = btn.dataset.deStatusFilter;
+    renderDeTable();
+  });
+});
+
+document.getElementById('de-search-input').addEventListener('input', (e) => {
+  deState.search = e.target.value.trim().toLowerCase();
+  renderDeTable();
+});
+
+document.getElementById('de-vehicle-filter').addEventListener('change', (e) => {
+  deState.vehicleFilter = e.target.value;
+  renderDeTable();
+});
+
+document.getElementById('de-clear-filters-btn').addEventListener('click', () => {
+  deState.statusFilter = 'all';
+  deState.search = '';
+  deState.vehicleFilter = 'all';
+  document.querySelectorAll('[data-de-status-filter]').forEach((b) => b.classList.toggle('active', b.dataset.deStatusFilter === 'all'));
+  document.getElementById('de-search-input').value = '';
+  document.getElementById('de-vehicle-filter').value = 'all';
+  renderDeTable();
+});
+
+function getFilteredDeliveryExecs() {
+  return allDeliveryExecs.filter((de) => {
+    const status = de.status || 'active';
+    if (deState.statusFilter !== 'all' && status !== deState.statusFilter) return false;
+    if (deState.vehicleFilter !== 'all' && de.vehicle !== deState.vehicleFilter) return false;
+    if (deState.search) {
+      const haystack = `${de.name || ''} ${de.phone || ''} ${de.area || ''}`.toLowerCase();
+      if (!haystack.includes(deState.search)) return false;
+    }
+    return true;
+  });
+}
+
+const deStatusLabel = { active: 'Active', inactive: 'Inactive' };
+const deStatusBadgeClass = { active: 'badge-new', inactive: 'badge-closed' };
+
+function renderDeTable() {
+  const tbody = document.getElementById('de-tbody');
+  const emptyState = document.getElementById('de-empty-state');
+  if (!tbody || !emptyState) return;
+  const filtered = getFilteredDeliveryExecs();
+
+  document.getElementById('de-stat-shown').textContent = filtered.length;
+  tbody.innerHTML = '';
+  emptyState.hidden = filtered.length > 0;
+
+  filtered.forEach((de) => {
+    const tr = document.createElement('tr');
+    const status = de.status || 'active';
+    const subCount = allSubscribers.filter((s) => s.deliveryExecId === de.id).length;
+    tr.innerHTML = `
+      <td class="cell-name">${escapeHtml(de.name || '—')}</td>
+      <td>${escapeHtml(de.phone || '—')}</td>
+      <td>${escapeHtml(de.area || '—')}</td>
+      <td>${escapeHtml(de.vehicle || '—')}</td>
+      <td>${subCount}</td>
+      <td><span class="badge ${deStatusBadgeClass[status] || 'badge-new'}">${deStatusLabel[status] || status}</span></td>
+    `;
+    tr.addEventListener('click', () => openDeDrawer(de.id));
+    tbody.appendChild(tr);
+  });
+}
+
+// ---------- Delivery executive drawer (add / edit) ----------
+const deDrawer = document.getElementById('de-drawer');
+const deForm = document.getElementById('de-form');
+let activeDeId = null;
+
+function openDeDrawer(id) {
+  activeDeId = id || null;
+  const de = id ? allDeliveryExecs.find((d) => d.id === id) : null;
+
+  document.getElementById('de-drawer-title').textContent = de ? 'Edit Delivery Executive' : 'Add Delivery Executive';
+  document.getElementById('de-name').value = de?.name || '';
+  document.getElementById('de-phone').value = de?.phone || '';
+  document.getElementById('de-email').value = de?.email || '';
+  document.getElementById('de-area').value = de?.area || '';
+  document.getElementById('de-vehicle').value = de?.vehicle || 'Bike';
+  document.getElementById('de-status').value = de?.status || 'active';
+  document.getElementById('de-notes').value = de?.notes || '';
+  document.getElementById('de-save-status').textContent = '';
+
+  deDrawer.hidden = false;
+}
+
+function closeDeDrawer() {
+  deDrawer.hidden = true;
+  activeDeId = null;
+}
+
+document.getElementById('add-de-btn').addEventListener('click', () => openDeDrawer(null));
+document.getElementById('de-drawer-close').addEventListener('click', closeDeDrawer);
+document.getElementById('de-drawer-backdrop').addEventListener('click', closeDeDrawer);
+
+deForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const saveStatus = document.getElementById('de-save-status');
+  const saveBtn = document.getElementById('de-save-btn');
+
+  const name = document.getElementById('de-name').value.trim();
+  const phone = document.getElementById('de-phone').value.trim();
+
+  if (!name || !phone) {
+    saveStatus.textContent = 'Name and phone are required.';
+    return;
+  }
+
+  const data = {
+    name,
+    phone,
+    email: document.getElementById('de-email').value.trim(),
+    area: document.getElementById('de-area').value.trim(),
+    vehicle: document.getElementById('de-vehicle').value,
+    status: document.getElementById('de-status').value,
+    notes: document.getElementById('de-notes').value.trim(),
+    updatedAt: serverTimestamp(),
+  };
+
+  saveBtn.disabled = true;
+  saveStatus.textContent = 'Saving…';
+  try {
+    if (activeDeId) {
+      await updateDoc(doc(db, 'deliveryExecutives', activeDeId), data);
+    } else {
+      await addDoc(collection(db, 'deliveryExecutives'), { ...data, createdAt: serverTimestamp() });
     }
     saveStatus.textContent = 'Saved.';
   } catch (err) {

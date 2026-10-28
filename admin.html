@@ -38,6 +38,7 @@
     <nav class="admin-nav">
       <button class="admin-nav-item active" data-tab="enquiries">📋 Enquiries</button>
       <button class="admin-nav-item" data-tab="subscribers">👥 Subscribers</button>
+      <button class="admin-nav-item" data-tab="delivery">🛵 Delivery Executives</button>
     </nav>
     <button id="logout-btn" class="admin-logout">Log out</button>
   </aside>
@@ -151,12 +152,64 @@
               <th>End</th>
               <th>Amount</th>
               <th>Status</th>
+              <th>Delivery Exec</th>
             </tr>
           </thead>
           <tbody id="subscribers-tbody"></tbody>
         </table>
         <p id="sub-loading-state" class="admin-loading">Loading subscribers…</p>
         <p id="sub-empty-state" class="admin-empty" hidden>No subscribers match these filters.</p>
+      </div>
+    </section>
+
+    <section id="tab-delivery" hidden>
+      <div class="admin-topbar">
+        <h1>Delivery Executives</h1>
+        <div class="admin-stats">
+          <div class="admin-stat"><strong id="de-stat-total">0</strong><span>Total</span></div>
+          <div class="admin-stat"><strong id="de-stat-active">0</strong><span>Active</span></div>
+          <div class="admin-stat"><strong id="de-stat-shown">0</strong><span>Shown</span></div>
+        </div>
+      </div>
+
+      <div class="admin-filters">
+        <div class="status-pills">
+          <button class="status-pill active" data-de-status-filter="all">All</button>
+          <button class="status-pill" data-de-status-filter="active">Active</button>
+          <button class="status-pill" data-de-status-filter="inactive">Inactive</button>
+        </div>
+
+        <input type="search" id="de-search-input" placeholder="Search name, phone or area…">
+
+        <select id="de-vehicle-filter">
+          <option value="all">All Vehicles</option>
+          <option value="Bike">Bike</option>
+          <option value="Scooter">Scooter</option>
+          <option value="Bicycle">Bicycle</option>
+          <option value="Van">Van</option>
+        </select>
+
+        <div class="admin-filter-spacer"></div>
+        <button id="de-clear-filters-btn" class="btn-clear-filters">Clear filters</button>
+        <button id="add-de-btn" class="btn btn-primary">+ Add Executive</button>
+      </div>
+
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Area</th>
+              <th>Vehicle</th>
+              <th>Subscribers</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="de-tbody"></tbody>
+        </table>
+        <p id="de-loading-state" class="admin-loading">Loading delivery executives…</p>
+        <p id="de-empty-state" class="admin-empty" hidden>No delivery executives match these filters.</p>
       </div>
     </section>
   </main>
@@ -256,6 +309,12 @@
         </div>
       </div>
       <div class="field">
+        <label for="sub-delivery-exec">Delivery Executive</label>
+        <select id="sub-delivery-exec">
+          <option value="">Unassigned</option>
+        </select>
+      </div>
+      <div class="field">
         <label for="sub-notes">Notes (optional)</label>
         <textarea id="sub-notes" placeholder="Anything worth remembering about this subscriber..."></textarea>
       </div>
@@ -265,6 +324,61 @@
       <div class="drawer-save-row">
         <button type="submit" id="sub-save-btn" class="btn btn-primary">Save Subscriber</button>
         <span id="sub-save-status" class="drawer-save-status"></span>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Delivery executive add/edit drawer -->
+<div id="de-drawer" class="admin-drawer" hidden>
+  <div class="admin-drawer-backdrop" id="de-drawer-backdrop"></div>
+  <div class="admin-drawer-panel">
+    <button class="admin-drawer-close" id="de-drawer-close">&times;</button>
+    <h2 id="de-drawer-title">Add Delivery Executive</h2>
+
+    <form id="de-form">
+      <div class="field">
+        <label for="de-name">Full Name</label>
+        <input type="text" id="de-name" required>
+      </div>
+      <div class="field">
+        <label for="de-phone">Phone Number</label>
+        <input type="tel" id="de-phone" required>
+      </div>
+      <div class="field">
+        <label for="de-email">Email (optional)</label>
+        <input type="email" id="de-email">
+      </div>
+      <div class="field">
+        <label for="de-area">Delivery Area</label>
+        <input type="text" id="de-area" placeholder="e.g. Gandhi Nagar, Bhimavaram">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="de-vehicle">Vehicle Type</label>
+          <select id="de-vehicle">
+            <option value="Bike">Bike</option>
+            <option value="Scooter">Scooter</option>
+            <option value="Bicycle">Bicycle</option>
+            <option value="Van">Van</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="de-status">Status</label>
+          <select id="de-status">
+            <option value="active" selected>Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="de-notes">Notes (optional)</label>
+        <textarea id="de-notes" placeholder="Anything worth remembering..."></textarea>
+      </div>
+
+      <div class="drawer-save-row">
+        <button type="submit" id="de-save-btn" class="btn btn-primary">Save Executive</button>
+        <span id="de-save-status" class="drawer-save-status"></span>
       </div>
     </form>
   </div>
