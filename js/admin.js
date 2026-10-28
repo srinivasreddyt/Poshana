@@ -354,6 +354,7 @@ function startListeningSubscribers() {
     renderSubStats();
     renderSubscribersTable();
     renderDeTable();
+    if (activeDeId && !deDrawer.hidden) renderAssignedSubscribers(activeDeId);
   }, (err) => {
     loadingState.textContent = 'Could not load subscribers: ' + err.message;
   });
@@ -768,7 +769,52 @@ function openDeDrawer(id) {
   document.getElementById('de-notes').value = de?.notes || '';
   document.getElementById('de-save-status').textContent = '';
 
+  renderAssignedSubscribers(id);
+
   deDrawer.hidden = false;
+}
+
+function renderAssignedSubscribers(deId) {
+  const section = document.getElementById('de-assigned-section');
+  const list = document.getElementById('de-assigned-list');
+  const countEl = document.getElementById('de-assigned-count');
+
+  if (!deId) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+
+  const assigned = allSubscribers.filter((s) => s.deliveryExecId === deId);
+  countEl.textContent = assigned.length;
+  list.innerHTML = '';
+
+  if (assigned.length === 0) {
+    list.innerHTML = '<p class="de-assigned-empty">No subscribers assigned yet.</p>';
+    return;
+  }
+
+  assigned.forEach((sub) => {
+    const status = sub.status || 'active';
+    const item = document.createElement('div');
+    item.className = 'de-sub-item';
+    item.innerHTML = `
+      <div class="de-sub-item-top">
+        <strong>${escapeHtml(sub.name || 'Unnamed')}</strong>
+        <span class="badge ${subStatusBadgeClass[status] || 'badge-new'}">${subStatusLabel[status] || status}</span>
+      </div>
+      <div class="de-sub-item-meta">
+        ${escapeHtml(sub.phone || '—')} · ${escapeHtml(sub.plan || '—')}<br>
+        ${formatShortDate(sub.startDate)} – ${formatShortDate(sub.endDate)}
+        ${sub.address ? '<br>' + escapeHtml(sub.address) : ''}
+      </div>
+    `;
+    item.addEventListener('click', () => {
+      closeDeDrawer();
+      openSubscriberDrawer(sub.id);
+    });
+    list.appendChild(item);
+  });
 }
 
 function closeDeDrawer() {

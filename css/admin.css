@@ -364,6 +364,28 @@
 .drawer-save-row { display: flex; align-items: center; gap: 14px; margin-top: 12px; }
 .drawer-save-status { font-size: 0.82rem; font-weight: 600; color: var(--green-700); min-height: 1.2em; }
 
+/* ---------- Assigned subscribers list (inside delivery exec drawer) ---------- */
+#de-assigned-section { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); }
+.de-sub-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  background: var(--cream);
+}
+.de-sub-item:hover { border-color: var(--green-600); }
+.de-sub-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.de-sub-item-top strong { font-size: 0.92rem; color: var(--green-900); }
+.de-sub-item-meta { font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; }
+.de-assigned-empty { font-size: 0.86rem; color: var(--text-muted); }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 860px) {
   .admin-app { flex-direction: column; }
