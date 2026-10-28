@@ -23,7 +23,7 @@ const {
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
 } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
 const {
-  getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp,
+  getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, serverTimestamp,
 } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
 
 const app = initializeApp(firebaseConfig);
@@ -39,6 +39,8 @@ const logoutBtn = document.getElementById('logout-btn');
 
 let allEnquiries = [];
 let unsubscribeSnapshot = null;
+let allSubscribers = [];
+let unsubscribeSubSnapshot = null;
 
 // ---------- Auth ----------
 pinForm.addEventListener('submit', async (e) => {
@@ -67,6 +69,7 @@ onAuthStateChanged(auth, (user) => {
     loginScreen.hidden = true;
     adminApp.hidden = false;
     startListening();
+    startListeningSubscribers();
   } else {
     adminApp.hidden = true;
     loginScreen.hidden = false;
@@ -75,8 +78,23 @@ onAuthStateChanged(auth, (user) => {
       unsubscribeSnapshot();
       unsubscribeSnapshot = null;
     }
+    if (unsubscribeSubSnapshot) {
+      unsubscribeSubSnapshot();
+      unsubscribeSubSnapshot = null;
+    }
     allEnquiries = [];
+    allSubscribers = [];
   }
+});
+
+// ---------- Tabs ----------
+document.querySelectorAll('.admin-nav-item').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.admin-nav-item').forEach((b) => b.classList.toggle('active', b === btn));
+    const tab = btn.dataset.tab;
+    document.getElementById('tab-enquiries').hidden = tab !== 'enquiries';
+    document.getElementById('tab-subscribers').hidden = tab !== 'subscribers';
+  });
 });
 
 // ---------- Data ----------
@@ -312,5 +330,240 @@ document.getElementById('save-drawer-btn').addEventListener('click', async () =>
     saveStatus.textContent = 'Comment saved.';
   } catch (err) {
     saveStatus.textContent = 'Could not save comment.';
+  }
+});
+
+// ============================================
+// Subscribers
+// ============================================
+function startListeningSubscribers() {
+  const loadingState = document.getElementById('sub-loading-state');
+  const q = query(collection(db, 'subscribers'), orderBy('startDate', 'desc'));
+  unsubscribeSubSnapshot = onSnapshot(q, (snapshot) => {
+    allSubscribers = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    loadingState.hidden = true;
+    renderSubStats();
+    renderSubscribersTable();
+  }, (err) => {
+    loadingState.textContent = 'Could not load subscribers: ' + err.message;
+  });
+}
+
+function renderSubStats() {
+  document.getElementById('sub-stat-total').textContent = allSubscribers.length;
+  document.getElementById('sub-stat-active').textContent = allSubscribers.filter((s) => s.status === 'active').length;
+}
+
+// ---------- Subscriber filters ----------
+const subState = {
+  statusFilter: 'all',
+  search: '',
+  month: '',
+};
+
+document.querySelectorAll('[data-sub-status-filter]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-sub-status-filter]').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    subState.statusFilter = btn.dataset.subStatusFilter;
+    renderSubscribersTable();
+  });
+});
+
+document.getElementById('sub-search-input').addEventListener('input', (e) => {
+  subState.search = e.target.value.trim().toLowerCase();
+  renderSubscribersTable();
+});
+
+const subMonthFilter = document.getElementById('sub-month-filter');
+subMonthFilter.addEventListener('input', () => {
+  subState.month = subMonthFilter.value;
+  renderSubscribersTable();
+});
+
+document.getElementById('sub-clear-filters-btn').addEventListener('click', () => {
+  subState.statusFilter = 'all';
+  subState.search = '';
+  subState.month = '';
+  document.querySelectorAll('[data-sub-status-filter]').forEach((b) => b.classList.toggle('active', b.dataset.subStatusFilter === 'all'));
+  document.getElementById('sub-search-input').value = '';
+  subMonthFilter.value = '';
+  renderSubscribersTable();
+});
+
+function matchesMonthFilter(sub) {
+  if (!subState.month) return true;
+  const start = toDate(sub.startDate);
+  const end = toDate(sub.endDate) || start;
+  if (!start) return false;
+  const [y, m] = subState.month.split('-').map(Number);
+  const monthStart = new Date(y, m - 1, 1);
+  const monthEnd = new Date(y, m, 0, 23, 59, 59);
+  return start <= monthEnd && end >= monthStart;
+}
+
+function getFilteredSubscribers() {
+  return allSubscribers.filter((sub) => {
+    if (subState.statusFilter !== 'all' && sub.status !== subState.statusFilter) return false;
+    if (subState.search) {
+      const haystack = `${sub.name || ''} ${sub.phone || ''}`.toLowerCase();
+      if (!haystack.includes(subState.search)) return false;
+    }
+    if (!matchesMonthFilter(sub)) return false;
+    return true;
+  });
+}
+
+function formatShortDate(ts) {
+  const d = toDate(ts);
+  if (!d) return '—';
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatCurrency(amount) {
+  if (amount === undefined || amount === null || amount === '') return '—';
+  return '₹' + Number(amount).toLocaleString('en-IN');
+}
+
+const subStatusLabel = { active: 'Active', paused: 'Paused', cancelled: 'Cancelled' };
+const subStatusBadgeClass = { active: 'badge-new', paused: 'badge-paused', cancelled: 'badge-closed' };
+
+function renderSubscribersTable() {
+  const tbody = document.getElementById('subscribers-tbody');
+  const emptyState = document.getElementById('sub-empty-state');
+  const filtered = getFilteredSubscribers();
+
+  document.getElementById('sub-stat-shown').textContent = filtered.length;
+  tbody.innerHTML = '';
+  emptyState.hidden = filtered.length > 0;
+
+  filtered.forEach((sub) => {
+    const tr = document.createElement('tr');
+    const status = sub.status || 'active';
+    tr.innerHTML = `
+      <td class="cell-name">${escapeHtml(sub.name || '—')}</td>
+      <td>${escapeHtml(sub.phone || '—')}</td>
+      <td>${escapeHtml(sub.plan || '—')}</td>
+      <td>${formatShortDate(sub.startDate)}</td>
+      <td>${formatShortDate(sub.endDate)}</td>
+      <td>${formatCurrency(sub.amount)}</td>
+      <td><span class="badge ${subStatusBadgeClass[status] || 'badge-new'}">${subStatusLabel[status] || status}</span></td>
+    `;
+    tr.addEventListener('click', () => openSubscriberDrawer(sub.id));
+    tbody.appendChild(tr);
+  });
+}
+
+// ---------- Subscriber drawer (add / edit) ----------
+const subDrawer = document.getElementById('subscriber-drawer');
+const subForm = document.getElementById('subscriber-form');
+const subComputedEnd = document.getElementById('sub-computed-end');
+let activeSubscriberId = null;
+
+function toDateInputValue(ts) {
+  const d = toDate(ts);
+  if (!d) return '';
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function computeEndDate(startDateStr, durationMonths) {
+  const [y, m, d] = startDateStr.split('-').map(Number);
+  const start = new Date(y, m - 1, d);
+  const end = new Date(start);
+  end.setMonth(end.getMonth() + Number(durationMonths));
+  end.setDate(end.getDate() - 1);
+  return end;
+}
+
+function updateComputedEndPreview() {
+  const startVal = document.getElementById('sub-start-date').value;
+  const duration = document.getElementById('sub-duration').value;
+  if (!startVal) {
+    subComputedEnd.textContent = '';
+    return;
+  }
+  const end = computeEndDate(startVal, duration);
+  subComputedEnd.textContent = 'Subscription ends: ' + end.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+document.getElementById('sub-start-date').addEventListener('input', updateComputedEndPreview);
+document.getElementById('sub-duration').addEventListener('change', updateComputedEndPreview);
+
+function openSubscriberDrawer(id) {
+  activeSubscriberId = id || null;
+  const sub = id ? allSubscribers.find((s) => s.id === id) : null;
+
+  document.getElementById('sub-drawer-title').textContent = sub ? 'Edit Subscriber' : 'Add Subscriber';
+  document.getElementById('sub-name').value = sub?.name || '';
+  document.getElementById('sub-phone').value = sub?.phone || '';
+  document.getElementById('sub-email').value = sub?.email || '';
+  document.getElementById('sub-plan').value = sub?.plan || 'Balanced';
+  document.getElementById('sub-address').value = sub?.address || '';
+  document.getElementById('sub-start-date').value = sub ? toDateInputValue(sub.startDate) : '';
+  document.getElementById('sub-duration').value = sub?.durationMonths || '1';
+  document.getElementById('sub-amount').value = sub?.amount ?? '';
+  document.getElementById('sub-status').value = sub?.status || 'active';
+  document.getElementById('sub-notes').value = sub?.notes || '';
+  document.getElementById('sub-save-status').textContent = '';
+  updateComputedEndPreview();
+
+  subDrawer.hidden = false;
+}
+
+function closeSubscriberDrawer() {
+  subDrawer.hidden = true;
+  activeSubscriberId = null;
+}
+
+document.getElementById('add-subscriber-btn').addEventListener('click', () => openSubscriberDrawer(null));
+document.getElementById('sub-drawer-close').addEventListener('click', closeSubscriberDrawer);
+document.getElementById('sub-drawer-backdrop').addEventListener('click', closeSubscriberDrawer);
+
+subForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const saveStatus = document.getElementById('sub-save-status');
+  const saveBtn = document.getElementById('sub-save-btn');
+
+  const name = document.getElementById('sub-name').value.trim();
+  const phone = document.getElementById('sub-phone').value.trim();
+  const startDateVal = document.getElementById('sub-start-date').value;
+  const durationMonths = Number(document.getElementById('sub-duration').value);
+
+  if (!name || !phone || !startDateVal) {
+    saveStatus.textContent = 'Name, phone and start date are required.';
+    return;
+  }
+
+  const [startY, startM, startD] = startDateVal.split('-').map(Number);
+  const startDate = new Date(startY, startM - 1, startD);
+  const endDate = computeEndDate(startDateVal, durationMonths);
+
+  const data = {
+    name,
+    phone,
+    email: document.getElementById('sub-email').value.trim(),
+    plan: document.getElementById('sub-plan').value,
+    address: document.getElementById('sub-address').value.trim(),
+    startDate,
+    durationMonths,
+    endDate,
+    amount: document.getElementById('sub-amount').value ? Number(document.getElementById('sub-amount').value) : null,
+    status: document.getElementById('sub-status').value,
+    notes: document.getElementById('sub-notes').value.trim(),
+    updatedAt: serverTimestamp(),
+  };
+
+  saveBtn.disabled = true;
+  saveStatus.textContent = 'Saving…';
+  try {
+    if (activeSubscriberId) {
+      await updateDoc(doc(db, 'subscribers', activeSubscriberId), data);
+    } else {
+      await addDoc(collection(db, 'subscribers'), { ...data, createdAt: serverTimestamp() });
+    }
+    saveStatus.textContent = 'Saved.';
+  } catch (err) {
+    saveStatus.textContent = 'Could not save: ' + err.message;
+  } finally {
+    saveBtn.disabled = false;
   }
 });

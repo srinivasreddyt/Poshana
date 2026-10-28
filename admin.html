@@ -37,6 +37,7 @@
     </a>
     <nav class="admin-nav">
       <button class="admin-nav-item active" data-tab="enquiries">📋 Enquiries</button>
+      <button class="admin-nav-item" data-tab="subscribers">👥 Subscribers</button>
     </nav>
     <button id="logout-btn" class="admin-logout">Log out</button>
   </aside>
@@ -93,6 +94,56 @@
         <p id="empty-state" class="admin-empty" hidden>No enquiries match these filters.</p>
       </div>
     </section>
+
+    <section id="tab-subscribers" hidden>
+      <div class="admin-topbar">
+        <h1>Subscribers</h1>
+        <div class="admin-stats">
+          <div class="admin-stat"><strong id="sub-stat-total">0</strong><span>Total</span></div>
+          <div class="admin-stat"><strong id="sub-stat-active">0</strong><span>Active</span></div>
+          <div class="admin-stat"><strong id="sub-stat-shown">0</strong><span>Shown</span></div>
+        </div>
+      </div>
+
+      <div class="admin-filters">
+        <div class="status-pills">
+          <button class="status-pill active" data-sub-status-filter="all">All</button>
+          <button class="status-pill" data-sub-status-filter="active">Active</button>
+          <button class="status-pill" data-sub-status-filter="paused">Paused</button>
+          <button class="status-pill" data-sub-status-filter="cancelled">Cancelled</button>
+        </div>
+
+        <input type="search" id="sub-search-input" placeholder="Search name or phone…">
+
+        <label class="admin-month-label">
+          Month
+          <input type="month" id="sub-month-filter">
+        </label>
+
+        <div class="admin-filter-spacer"></div>
+        <button id="sub-clear-filters-btn" class="btn-clear-filters">Clear filters</button>
+        <button id="add-subscriber-btn" class="btn btn-primary">+ Add Subscriber</button>
+      </div>
+
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Plan</th>
+              <th>Start</th>
+              <th>End</th>
+              <th>Amount</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="subscribers-tbody"></tbody>
+        </table>
+        <p id="sub-loading-state" class="admin-loading">Loading subscribers…</p>
+        <p id="sub-empty-state" class="admin-empty" hidden>No subscribers match these filters.</p>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -125,6 +176,82 @@
       <button id="save-drawer-btn" class="btn btn-primary">Save changes</button>
       <span id="drawer-save-status" class="drawer-save-status"></span>
     </div>
+  </div>
+</div>
+
+<!-- Subscriber add/edit drawer -->
+<div id="subscriber-drawer" class="admin-drawer" hidden>
+  <div class="admin-drawer-backdrop" id="sub-drawer-backdrop"></div>
+  <div class="admin-drawer-panel">
+    <button class="admin-drawer-close" id="sub-drawer-close">&times;</button>
+    <h2 id="sub-drawer-title">Add Subscriber</h2>
+
+    <form id="subscriber-form">
+      <div class="field">
+        <label for="sub-name">Full Name</label>
+        <input type="text" id="sub-name" required>
+      </div>
+      <div class="field">
+        <label for="sub-phone">Phone Number</label>
+        <input type="tel" id="sub-phone" required>
+      </div>
+      <div class="field">
+        <label for="sub-email">Email (optional)</label>
+        <input type="email" id="sub-email">
+      </div>
+      <div class="field">
+        <label for="sub-plan">Plan</label>
+        <select id="sub-plan">
+          <option value="Essential">Essential</option>
+          <option value="Balanced" selected>Balanced</option>
+          <option value="Complete Wellness">Complete Wellness</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="sub-address">Delivery Address</label>
+        <textarea id="sub-address" placeholder="House no, street, landmark..."></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="sub-start-date">Start Date</label>
+          <input type="date" id="sub-start-date" required>
+        </div>
+        <div class="field">
+          <label for="sub-duration">Duration</label>
+          <select id="sub-duration">
+            <option value="1">1 month</option>
+            <option value="3">3 months</option>
+            <option value="6">6 months</option>
+            <option value="12">12 months</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="sub-amount">Amount Paid (₹)</label>
+          <input type="number" id="sub-amount" min="0" step="1">
+        </div>
+        <div class="field">
+          <label for="sub-status">Status</label>
+          <select id="sub-status">
+            <option value="active" selected>Active</option>
+            <option value="paused">Paused</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="sub-notes">Notes (optional)</label>
+        <textarea id="sub-notes" placeholder="Anything worth remembering about this subscriber..."></textarea>
+      </div>
+
+      <p id="sub-computed-end" class="form-note"></p>
+
+      <div class="drawer-save-row">
+        <button type="submit" id="sub-save-btn" class="btn btn-primary">Save Subscriber</button>
+        <span id="sub-save-status" class="drawer-save-status"></span>
+      </div>
+    </form>
   </div>
 </div>
 

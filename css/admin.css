@@ -192,6 +192,15 @@
 }
 .admin-filters input[type="search"] { min-width: 180px; }
 
+.admin-month-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
 .admin-filter-spacer { flex-grow: 1; }
 
 .btn-clear-filters {
@@ -245,6 +254,7 @@
 }
 .badge-new { background: var(--green-200); color: var(--green-800); }
 .badge-closed { background: #e4e0d4; color: #6b6554; }
+.badge-paused { background: #f5dfb0; color: #7a5a14; }
 
 .admin-empty, .admin-loading {
   text-align: center;
@@ -344,6 +354,22 @@
   resize: vertical;
 }
 
+/* ---------- Subscriber form (shares .field/.form-note from styles.css) ---------- */
+#subscriber-drawer .field textarea {
+  width: 100%;
+  min-height: 70px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  background: var(--cream);
+  color: var(--text);
+  resize: vertical;
+}
+.field-row { display: flex; gap: 14px; }
+.field-row .field { flex: 1; }
+
 .drawer-save-row { display: flex; align-items: center; gap: 14px; margin-top: 12px; }
 .drawer-save-status { font-size: 0.82rem; font-weight: 600; color: var(--green-700); min-height: 1.2em; }
 
@@ -361,4 +387,5 @@
   .admin-nav { flex-grow: 0; display: flex; }
   .admin-main { padding: 24px 18px 50px; }
   .admin-drawer-panel { max-width: 100%; }
+  .field-row { flex-direction: column; gap: 0; }
 }
