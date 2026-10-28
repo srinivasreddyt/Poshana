@@ -352,6 +352,9 @@ function startListeningSubscribers() {
 function renderSubStats() {
   document.getElementById('sub-stat-total').textContent = allSubscribers.length;
   document.getElementById('sub-stat-active').textContent = allSubscribers.filter((s) => s.status === 'active').length;
+  document.getElementById('sub-stat-essential').textContent = allSubscribers.filter((s) => s.plan === 'Essential').length;
+  document.getElementById('sub-stat-balanced').textContent = allSubscribers.filter((s) => s.plan === 'Balanced').length;
+  document.getElementById('sub-stat-complete').textContent = allSubscribers.filter((s) => s.plan === 'Complete Wellness').length;
 }
 
 // ---------- Subscriber filters ----------
