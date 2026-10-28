@@ -115,10 +115,15 @@
 
         <input type="search" id="sub-search-input" placeholder="Search name or phone…">
 
-        <label class="admin-month-label">
-          Month
-          <input type="month" id="sub-month-filter">
-        </label>
+        <select id="sub-date-filter-type">
+          <option value="all">All time</option>
+          <option value="day">Specific day</option>
+          <option value="month">Specific month</option>
+          <option value="year">Specific year</option>
+        </select>
+        <input type="date" id="sub-date-filter-day" hidden>
+        <input type="month" id="sub-date-filter-month" hidden>
+        <input type="number" id="sub-date-filter-year" placeholder="e.g. 2026" min="2020" max="2100" hidden>
 
         <div class="admin-filter-spacer"></div>
         <button id="sub-clear-filters-btn" class="btn-clear-filters">Clear filters</button>

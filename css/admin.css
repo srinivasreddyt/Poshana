@@ -192,15 +192,6 @@
 }
 .admin-filters input[type="search"] { min-width: 180px; }
 
-.admin-month-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
 .admin-filter-spacer { flex-grow: 1; }
 
 .btn-clear-filters {

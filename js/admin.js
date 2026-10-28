@@ -358,7 +358,7 @@ function renderSubStats() {
 const subState = {
   statusFilter: 'all',
   search: '',
-  month: '',
+  dateType: 'all',
 };
 
 document.querySelectorAll('[data-sub-status-filter]').forEach((btn) => {
@@ -375,31 +375,68 @@ document.getElementById('sub-search-input').addEventListener('input', (e) => {
   renderSubscribersTable();
 });
 
-const subMonthFilter = document.getElementById('sub-month-filter');
-subMonthFilter.addEventListener('input', () => {
-  subState.month = subMonthFilter.value;
+const subDateFilterType = document.getElementById('sub-date-filter-type');
+const subDayInput = document.getElementById('sub-date-filter-day');
+const subMonthInput = document.getElementById('sub-date-filter-month');
+const subYearInput = document.getElementById('sub-date-filter-year');
+
+subDateFilterType.addEventListener('change', () => {
+  subState.dateType = subDateFilterType.value;
+  subDayInput.hidden = subState.dateType !== 'day';
+  subMonthInput.hidden = subState.dateType !== 'month';
+  subYearInput.hidden = subState.dateType !== 'year';
+
+  const { y, m, d } = todayParts();
+  if (subState.dateType === 'day' && !subDayInput.value) subDayInput.value = `${y}-${m}-${d}`;
+  if (subState.dateType === 'month' && !subMonthInput.value) subMonthInput.value = `${y}-${m}`;
+  if (subState.dateType === 'year' && !subYearInput.value) subYearInput.value = `${y}`;
+
   renderSubscribersTable();
 });
+[subDayInput, subMonthInput, subYearInput].forEach((el) => el.addEventListener('input', renderSubscribersTable));
 
 document.getElementById('sub-clear-filters-btn').addEventListener('click', () => {
   subState.statusFilter = 'all';
   subState.search = '';
-  subState.month = '';
+  subState.dateType = 'all';
   document.querySelectorAll('[data-sub-status-filter]').forEach((b) => b.classList.toggle('active', b.dataset.subStatusFilter === 'all'));
   document.getElementById('sub-search-input').value = '';
-  subMonthFilter.value = '';
+  subDateFilterType.value = 'all';
+  subDayInput.hidden = subMonthInput.hidden = subYearInput.hidden = true;
+  subDayInput.value = subMonthInput.value = subYearInput.value = '';
   renderSubscribersTable();
 });
 
-function matchesMonthFilter(sub) {
-  if (!subState.month) return true;
+// A subscriber "matches" a day/month/year when their [startDate, endDate]
+// window overlaps that period — e.g. someone who started in September on a
+// 3-month plan still shows up under a November or December filter.
+function matchesSubDateFilter(sub) {
+  if (subState.dateType === 'all') return true;
   const start = toDate(sub.startDate);
   const end = toDate(sub.endDate) || start;
   if (!start) return false;
-  const [y, m] = subState.month.split('-').map(Number);
-  const monthStart = new Date(y, m - 1, 1);
-  const monthEnd = new Date(y, m, 0, 23, 59, 59);
-  return start <= monthEnd && end >= monthStart;
+
+  let periodStart, periodEnd;
+  if (subState.dateType === 'day') {
+    if (!subDayInput.value) return false;
+    const [y, m, d] = subDayInput.value.split('-').map(Number);
+    periodStart = new Date(y, m - 1, d);
+    periodEnd = new Date(y, m - 1, d, 23, 59, 59);
+  } else if (subState.dateType === 'month') {
+    if (!subMonthInput.value) return false;
+    const [y, m] = subMonthInput.value.split('-').map(Number);
+    periodStart = new Date(y, m - 1, 1);
+    periodEnd = new Date(y, m, 0, 23, 59, 59);
+  } else if (subState.dateType === 'year') {
+    if (!subYearInput.value) return false;
+    const y = Number(subYearInput.value);
+    periodStart = new Date(y, 0, 1);
+    periodEnd = new Date(y, 11, 31, 23, 59, 59);
+  } else {
+    return true;
+  }
+
+  return start <= periodEnd && end >= periodStart;
 }
 
 function getFilteredSubscribers() {
@@ -409,7 +446,7 @@ function getFilteredSubscribers() {
       const haystack = `${sub.name || ''} ${sub.phone || ''}`.toLowerCase();
       if (!haystack.includes(subState.search)) return false;
     }
-    if (!matchesMonthFilter(sub)) return false;
+    if (!matchesSubDateFilter(sub)) return false;
     return true;
   });
 }
