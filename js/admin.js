@@ -43,6 +43,8 @@ let allSubscribers = [];
 let unsubscribeSubSnapshot = null;
 let allDeliveryExecs = [];
 let unsubscribeDeSnapshot = null;
+let allMentors = [];
+let unsubscribeMentorSnapshot = null;
 
 // ---------- Auth ----------
 pinForm.addEventListener('submit', async (e) => {
@@ -73,6 +75,7 @@ onAuthStateChanged(auth, (user) => {
     startListening();
     startListeningSubscribers();
     startListeningDeliveryExecs();
+    startListeningMentors();
   } else {
     adminApp.hidden = true;
     loginScreen.hidden = false;
@@ -89,9 +92,14 @@ onAuthStateChanged(auth, (user) => {
       unsubscribeDeSnapshot();
       unsubscribeDeSnapshot = null;
     }
+    if (unsubscribeMentorSnapshot) {
+      unsubscribeMentorSnapshot();
+      unsubscribeMentorSnapshot = null;
+    }
     allEnquiries = [];
     allSubscribers = [];
     allDeliveryExecs = [];
+    allMentors = [];
   }
 });
 
@@ -102,6 +110,7 @@ document.querySelectorAll('.admin-nav-item').forEach((btn) => {
     const tab = btn.dataset.tab;
     document.getElementById('tab-enquiries').hidden = tab !== 'enquiries';
     document.getElementById('tab-subscribers').hidden = tab !== 'subscribers';
+    document.getElementById('tab-mentors').hidden = tab !== 'mentors';
     document.getElementById('tab-delivery').hidden = tab !== 'delivery';
   });
 });
@@ -354,7 +363,9 @@ function startListeningSubscribers() {
     renderSubStats();
     renderSubscribersTable();
     renderDeTable();
-    if (activeDeId && !deDrawer.hidden) renderAssignedSubscribers(activeDeId);
+    renderMentorTable();
+    if (activeDeId && !deDrawer.hidden) renderAssignedList('de', 'deliveryExecId', activeDeId, closeDeDrawer);
+    if (activeMentorId && !mentorDrawer.hidden) renderAssignedList('mentor', 'mentorId', activeMentorId, closeMentorDrawer);
   }, (err) => {
     loadingState.textContent = 'Could not load subscribers: ' + err.message;
   });
@@ -373,6 +384,7 @@ const subState = {
   statusFilter: 'all',
   search: '',
   planFilter: 'all',
+  mentorFilter: 'all',
   deFilter: 'all',
   dateType: 'all',
 };
@@ -396,26 +408,37 @@ document.getElementById('sub-plan-filter').addEventListener('change', (e) => {
   renderSubscribersTable();
 });
 
+document.getElementById('sub-mentor-filter').addEventListener('change', (e) => {
+  subState.mentorFilter = e.target.value;
+  renderSubscribersTable();
+});
+
 document.getElementById('sub-de-filter').addEventListener('change', (e) => {
   subState.deFilter = e.target.value;
   renderSubscribersTable();
 });
 
-// Rebuilt whenever the delivery executives list changes; keeps the current
-// selection, falling back to "all" if that executive was removed.
-function populateSubDeFilter() {
-  const select = document.getElementById('sub-de-filter');
-  select.innerHTML = '<option value="all">All Executives</option><option value="unassigned">Unassigned</option>';
-  allDeliveryExecs.forEach((de) => {
+// Rebuilt whenever the mentor / delivery exec list changes; keeps the current
+// selection, falling back to "all" if that person was removed.
+function populateAssigneeFilter(selectId, people, stateKey, allLabel, noneLabel) {
+  const select = document.getElementById(selectId);
+  select.innerHTML = '';
+  [['all', allLabel], ['unassigned', noneLabel], ...people.map((p) => [p.id, p.name])].forEach(([value, label]) => {
     const opt = document.createElement('option');
-    opt.value = de.id;
-    opt.textContent = de.name;
+    opt.value = value;
+    opt.textContent = label;
     select.appendChild(opt);
   });
-  const stillExists = ['all', 'unassigned'].includes(subState.deFilter)
-    || allDeliveryExecs.some((de) => de.id === subState.deFilter);
-  if (!stillExists) subState.deFilter = 'all';
-  select.value = subState.deFilter;
+  const current = subState[stateKey];
+  const stillExists = current === 'all' || current === 'unassigned' || people.some((p) => p.id === current);
+  if (!stillExists) subState[stateKey] = 'all';
+  select.value = subState[stateKey];
+}
+
+function matchesAssignee(filterValue, assignedId) {
+  if (filterValue === 'all') return true;
+  if (filterValue === 'unassigned') return !assignedId;
+  return assignedId === filterValue;
 }
 
 const subDateFilterType = document.getElementById('sub-date-filter-type');
@@ -442,11 +465,13 @@ document.getElementById('sub-clear-filters-btn').addEventListener('click', () =>
   subState.statusFilter = 'all';
   subState.search = '';
   subState.planFilter = 'all';
+  subState.mentorFilter = 'all';
   subState.deFilter = 'all';
   subState.dateType = 'all';
   document.querySelectorAll('[data-sub-status-filter]').forEach((b) => b.classList.toggle('active', b.dataset.subStatusFilter === 'all'));
   document.getElementById('sub-search-input').value = '';
   document.getElementById('sub-plan-filter').value = 'all';
+  document.getElementById('sub-mentor-filter').value = 'all';
   document.getElementById('sub-de-filter').value = 'all';
   subDateFilterType.value = 'all';
   subDayInput.hidden = subMonthInput.hidden = subYearInput.hidden = true;
@@ -490,8 +515,8 @@ function getFilteredSubscribers() {
   return allSubscribers.filter((sub) => {
     if (subState.statusFilter !== 'all' && sub.status !== subState.statusFilter) return false;
     if (subState.planFilter !== 'all' && sub.plan !== subState.planFilter) return false;
-    if (subState.deFilter === 'unassigned' && sub.deliveryExecId) return false;
-    if (subState.deFilter !== 'all' && subState.deFilter !== 'unassigned' && sub.deliveryExecId !== subState.deFilter) return false;
+    if (!matchesAssignee(subState.mentorFilter, sub.mentorId)) return false;
+    if (!matchesAssignee(subState.deFilter, sub.deliveryExecId)) return false;
     if (subState.search) {
       const haystack = `${sub.name || ''} ${sub.phone || ''}`.toLowerCase();
       if (!haystack.includes(subState.search)) return false;
@@ -535,6 +560,7 @@ function renderSubscribersTable() {
       <td>${formatShortDate(sub.endDate)}</td>
       <td>${formatCurrency(sub.amount)}</td>
       <td><span class="badge ${subStatusBadgeClass[status] || 'badge-new'}">${subStatusLabel[status] || status}</span></td>
+      <td>${escapeHtml(sub.mentorName || '—')}</td>
       <td>${escapeHtml(sub.deliveryExecName || '—')}</td>
     `;
     tr.addEventListener('click', () => openSubscriberDrawer(sub.id));
@@ -576,16 +602,23 @@ function updateComputedEndPreview() {
 document.getElementById('sub-start-date').addEventListener('input', updateComputedEndPreview);
 document.getElementById('sub-duration').addEventListener('change', updateComputedEndPreview);
 
-function populateDeliveryExecSelect(selectedId) {
-  const select = document.getElementById('sub-delivery-exec');
+function populateAssigneeSelect(selectId, people, selectedId, detailKey) {
+  const select = document.getElementById(selectId);
   select.innerHTML = '<option value="">Unassigned</option>';
-  allDeliveryExecs.forEach((de) => {
+  people.forEach((p) => {
     const opt = document.createElement('option');
-    opt.value = de.id;
-    opt.textContent = de.name + (de.area ? ' — ' + de.area : '');
+    opt.value = p.id;
+    opt.textContent = p.name + (p[detailKey] ? ' — ' + p[detailKey] : '');
     select.appendChild(opt);
   });
   select.value = selectedId || '';
+}
+
+// Returns the selected person's id and display label, or nulls when unassigned.
+function readAssigneeSelect(selectId) {
+  const select = document.getElementById(selectId);
+  if (!select.value) return { id: null, name: null };
+  return { id: select.value, name: select.options[select.selectedIndex].textContent };
 }
 
 function openSubscriberDrawer(id) {
@@ -602,7 +635,8 @@ function openSubscriberDrawer(id) {
   document.getElementById('sub-duration').value = sub?.durationMonths || '1';
   document.getElementById('sub-amount').value = sub?.amount ?? '';
   document.getElementById('sub-status').value = sub?.status || 'active';
-  populateDeliveryExecSelect(sub?.deliveryExecId || '');
+  populateAssigneeSelect('sub-mentor', allMentors, sub?.mentorId, 'specialization');
+  populateAssigneeSelect('sub-delivery-exec', allDeliveryExecs, sub?.deliveryExecId, 'area');
   document.getElementById('sub-notes').value = sub?.notes || '';
   document.getElementById('sub-save-status').textContent = '';
   updateComputedEndPreview();
@@ -638,11 +672,8 @@ subForm.addEventListener('submit', async (e) => {
   const startDate = new Date(startY, startM - 1, startD);
   const endDate = computeEndDate(startDateVal, durationMonths);
 
-  const deliveryExecSelect = document.getElementById('sub-delivery-exec');
-  const deliveryExecId = deliveryExecSelect.value || null;
-  const deliveryExecName = deliveryExecId
-    ? deliveryExecSelect.options[deliveryExecSelect.selectedIndex].textContent
-    : null;
+  const mentor = readAssigneeSelect('sub-mentor');
+  const deliveryExec = readAssigneeSelect('sub-delivery-exec');
 
   const data = {
     name,
@@ -655,8 +686,10 @@ subForm.addEventListener('submit', async (e) => {
     endDate,
     amount: document.getElementById('sub-amount').value ? Number(document.getElementById('sub-amount').value) : null,
     status: document.getElementById('sub-status').value,
-    deliveryExecId,
-    deliveryExecName,
+    mentorId: mentor.id,
+    mentorName: mentor.name,
+    deliveryExecId: deliveryExec.id,
+    deliveryExecName: deliveryExec.name,
     notes: document.getElementById('sub-notes').value.trim(),
     updatedAt: serverTimestamp(),
   };
@@ -688,7 +721,7 @@ function startListeningDeliveryExecs() {
     loadingState.hidden = true;
     renderDeStats();
     renderDeTable();
-    populateSubDeFilter();
+    populateAssigneeFilter('sub-de-filter', allDeliveryExecs, 'deFilter', 'All Executives', 'Unassigned');
     renderSubscribersTable();
   }, (err) => {
     loadingState.textContent = 'Could not load delivery executives: ' + err.message;
@@ -798,48 +831,51 @@ function openDeDrawer(id) {
   document.getElementById('de-notes').value = de?.notes || '';
   document.getElementById('de-save-status').textContent = '';
 
-  renderAssignedSubscribers(id);
+  renderAssignedList('de', 'deliveryExecId', id, closeDeDrawer);
 
   deDrawer.hidden = false;
 }
 
-function renderAssignedSubscribers(deId) {
-  const section = document.getElementById('de-assigned-section');
-  const list = document.getElementById('de-assigned-list');
-  const countEl = document.getElementById('de-assigned-count');
+// Lists the subscribers whose `field` (mentorId / deliveryExecId) points at
+// ownerId, inside the `${prefix}-assigned-*` section of a drawer. Clicking one
+// closes that drawer and opens the subscriber.
+function renderAssignedList(prefix, field, ownerId, closeOwnerDrawer) {
+  const section = document.getElementById(`${prefix}-assigned-section`);
+  const list = document.getElementById(`${prefix}-assigned-list`);
+  const countEl = document.getElementById(`${prefix}-assigned-count`);
 
-  if (!deId) {
+  if (!ownerId) {
     section.hidden = true;
     return;
   }
   section.hidden = false;
 
-  const assigned = allSubscribers.filter((s) => s.deliveryExecId === deId);
+  const assigned = allSubscribers.filter((s) => s[field] === ownerId);
   countEl.textContent = assigned.length;
   list.innerHTML = '';
 
   if (assigned.length === 0) {
-    list.innerHTML = '<p class="de-assigned-empty">No subscribers assigned yet.</p>';
+    list.innerHTML = '<p class="assigned-empty">No subscribers assigned yet.</p>';
     return;
   }
 
   assigned.forEach((sub) => {
     const status = sub.status || 'active';
     const item = document.createElement('div');
-    item.className = 'de-sub-item';
+    item.className = 'assigned-item';
     item.innerHTML = `
-      <div class="de-sub-item-top">
+      <div class="assigned-item-top">
         <strong>${escapeHtml(sub.name || 'Unnamed')}</strong>
         <span class="badge ${subStatusBadgeClass[status] || 'badge-new'}">${subStatusLabel[status] || status}</span>
       </div>
-      <div class="de-sub-item-meta">
+      <div class="assigned-item-meta">
         ${escapeHtml(sub.phone || '—')} · ${escapeHtml(sub.plan || '—')}<br>
         ${formatShortDate(sub.startDate)} – ${formatShortDate(sub.endDate)}
         ${sub.address ? '<br>' + escapeHtml(sub.address) : ''}
       </div>
     `;
     item.addEventListener('click', () => {
-      closeDeDrawer();
+      closeOwnerDrawer();
       openSubscriberDrawer(sub.id);
     });
     list.appendChild(item);
@@ -886,6 +922,170 @@ deForm.addEventListener('submit', async (e) => {
       await updateDoc(doc(db, 'deliveryExecutives', activeDeId), data);
     } else {
       await addDoc(collection(db, 'deliveryExecutives'), { ...data, createdAt: serverTimestamp() });
+    }
+    saveStatus.textContent = 'Saved.';
+  } catch (err) {
+    saveStatus.textContent = 'Could not save: ' + err.message;
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
+
+// ============================================
+// Mentors
+// ============================================
+function startListeningMentors() {
+  const loadingState = document.getElementById('mentor-loading-state');
+  const q = query(collection(db, 'mentors'), orderBy('name', 'asc'));
+  unsubscribeMentorSnapshot = onSnapshot(q, (snapshot) => {
+    allMentors = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    loadingState.hidden = true;
+    renderMentorStats();
+    renderMentorTable();
+    populateAssigneeFilter('sub-mentor-filter', allMentors, 'mentorFilter', 'All Mentors', 'No Mentor');
+    renderSubscribersTable();
+  }, (err) => {
+    loadingState.textContent = 'Could not load mentors: ' + err.message;
+  });
+}
+
+function renderMentorStats() {
+  document.getElementById('mentor-stat-total').textContent = allMentors.length;
+  document.getElementById('mentor-stat-active').textContent = allMentors.filter((m) => m.status !== 'inactive').length;
+}
+
+// ---------- Mentor filters ----------
+const mentorState = {
+  statusFilter: 'all',
+  search: '',
+};
+
+document.querySelectorAll('[data-mentor-status-filter]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-mentor-status-filter]').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    mentorState.statusFilter = btn.dataset.mentorStatusFilter;
+    renderMentorTable();
+  });
+});
+
+document.getElementById('mentor-search-input').addEventListener('input', (e) => {
+  mentorState.search = e.target.value.trim().toLowerCase();
+  renderMentorTable();
+});
+
+document.getElementById('mentor-clear-filters-btn').addEventListener('click', () => {
+  mentorState.statusFilter = 'all';
+  mentorState.search = '';
+  document.querySelectorAll('[data-mentor-status-filter]').forEach((b) => b.classList.toggle('active', b.dataset.mentorStatusFilter === 'all'));
+  document.getElementById('mentor-search-input').value = '';
+  renderMentorTable();
+});
+
+function getFilteredMentors() {
+  return allMentors.filter((m) => {
+    const status = m.status || 'active';
+    if (mentorState.statusFilter !== 'all' && status !== mentorState.statusFilter) return false;
+    if (mentorState.search) {
+      const haystack = `${m.name || ''} ${m.phone || ''} ${m.specialization || ''}`.toLowerCase();
+      if (!haystack.includes(mentorState.search)) return false;
+    }
+    return true;
+  });
+}
+
+function renderMentorTable() {
+  const tbody = document.getElementById('mentor-tbody');
+  const emptyState = document.getElementById('mentor-empty-state');
+  const filtered = getFilteredMentors();
+
+  document.getElementById('mentor-stat-shown').textContent = filtered.length;
+  tbody.innerHTML = '';
+  emptyState.hidden = filtered.length > 0;
+
+  filtered.forEach((m) => {
+    const tr = document.createElement('tr');
+    const status = m.status || 'active';
+    const subCount = allSubscribers.filter((s) => s.mentorId === m.id).length;
+    const experience = m.experience || m.experience === 0 ? `${m.experience} yrs` : '—';
+    tr.innerHTML = `
+      <td class="cell-name">${escapeHtml(m.name || '—')}</td>
+      <td>${escapeHtml(m.phone || '—')}</td>
+      <td>${escapeHtml(m.specialization || '—')}</td>
+      <td>${experience}</td>
+      <td>${subCount}</td>
+      <td><span class="badge ${deStatusBadgeClass[status] || 'badge-new'}">${deStatusLabel[status] || status}</span></td>
+    `;
+    tr.addEventListener('click', () => openMentorDrawer(m.id));
+    tbody.appendChild(tr);
+  });
+}
+
+// ---------- Mentor drawer (add / edit) ----------
+const mentorDrawer = document.getElementById('mentor-drawer');
+const mentorForm = document.getElementById('mentor-form');
+let activeMentorId = null;
+
+function openMentorDrawer(id) {
+  activeMentorId = id || null;
+  const m = id ? allMentors.find((x) => x.id === id) : null;
+
+  document.getElementById('mentor-drawer-title').textContent = m ? 'Edit Mentor' : 'Add Mentor';
+  document.getElementById('mentor-name').value = m?.name || '';
+  document.getElementById('mentor-phone').value = m?.phone || '';
+  document.getElementById('mentor-email').value = m?.email || '';
+  document.getElementById('mentor-specialization').value = m?.specialization || '';
+  document.getElementById('mentor-experience').value = m?.experience ?? '';
+  document.getElementById('mentor-status').value = m?.status || 'active';
+  document.getElementById('mentor-notes').value = m?.notes || '';
+  document.getElementById('mentor-save-status').textContent = '';
+
+  renderAssignedList('mentor', 'mentorId', id, closeMentorDrawer);
+
+  mentorDrawer.hidden = false;
+}
+
+function closeMentorDrawer() {
+  mentorDrawer.hidden = true;
+  activeMentorId = null;
+}
+
+document.getElementById('add-mentor-btn').addEventListener('click', () => openMentorDrawer(null));
+document.getElementById('mentor-drawer-close').addEventListener('click', closeMentorDrawer);
+document.getElementById('mentor-drawer-backdrop').addEventListener('click', closeMentorDrawer);
+
+mentorForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const saveStatus = document.getElementById('mentor-save-status');
+  const saveBtn = document.getElementById('mentor-save-btn');
+
+  const name = document.getElementById('mentor-name').value.trim();
+  const phone = document.getElementById('mentor-phone').value.trim();
+
+  if (!name || !phone) {
+    saveStatus.textContent = 'Name and phone are required.';
+    return;
+  }
+
+  const experienceVal = document.getElementById('mentor-experience').value;
+  const data = {
+    name,
+    phone,
+    email: document.getElementById('mentor-email').value.trim(),
+    specialization: document.getElementById('mentor-specialization').value.trim(),
+    experience: experienceVal === '' ? null : Number(experienceVal),
+    status: document.getElementById('mentor-status').value,
+    notes: document.getElementById('mentor-notes').value.trim(),
+    updatedAt: serverTimestamp(),
+  };
+
+  saveBtn.disabled = true;
+  saveStatus.textContent = 'Saving…';
+  try {
+    if (activeMentorId) {
+      await updateDoc(doc(db, 'mentors', activeMentorId), data);
+    } else {
+      await addDoc(collection(db, 'mentors'), { ...data, createdAt: serverTimestamp() });
     }
     saveStatus.textContent = 'Saved.';
   } catch (err) {

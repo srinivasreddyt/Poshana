@@ -364,9 +364,9 @@
 .drawer-save-row { display: flex; align-items: center; gap: 14px; margin-top: 12px; }
 .drawer-save-status { font-size: 0.82rem; font-weight: 600; color: var(--green-700); min-height: 1.2em; }
 
-/* ---------- Assigned subscribers list (inside delivery exec drawer) ---------- */
-#de-assigned-section { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); }
-.de-sub-item {
+/* ---------- Assigned subscribers list (mentor / delivery exec drawers) ---------- */
+.assigned-section { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); }
+.assigned-item {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
@@ -374,17 +374,17 @@
   cursor: pointer;
   background: var(--cream);
 }
-.de-sub-item:hover { border-color: var(--green-600); }
-.de-sub-item-top {
+.assigned-item:hover { border-color: var(--green-600); }
+.assigned-item-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 6px;
 }
-.de-sub-item-top strong { font-size: 0.92rem; color: var(--green-900); }
-.de-sub-item-meta { font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; }
-.de-assigned-empty { font-size: 0.86rem; color: var(--text-muted); }
+.assigned-item-top strong { font-size: 0.92rem; color: var(--green-900); }
+.assigned-item-meta { font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; }
+.assigned-empty { font-size: 0.86rem; color: var(--text-muted); }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 860px) {
@@ -396,8 +396,10 @@
     justify-content: space-between;
     padding: 16px 20px;
   }
+  .admin-sidebar { flex-wrap: wrap; row-gap: 12px; }
   .admin-sidebar .brand { margin-bottom: 0; }
-  .admin-nav { flex-grow: 0; display: flex; }
+  .admin-nav { order: 3; flex: 1 1 100%; display: flex; overflow-x: auto; }
+  .admin-nav-item { white-space: nowrap; width: auto; margin-bottom: 0; }
   .admin-main { padding: 24px 18px 50px; }
   .admin-drawer-panel { max-width: 100%; }
   .field-row { flex-direction: column; gap: 0; }

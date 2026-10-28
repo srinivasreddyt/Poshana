@@ -38,6 +38,7 @@
     <nav class="admin-nav">
       <button class="admin-nav-item active" data-tab="enquiries">📋 Enquiries</button>
       <button class="admin-nav-item" data-tab="subscribers">👥 Subscribers</button>
+      <button class="admin-nav-item" data-tab="mentors">🧑‍⚕️ Mentors</button>
       <button class="admin-nav-item" data-tab="delivery">🛵 Delivery Executives</button>
     </nav>
     <button id="logout-btn" class="admin-logout">Log out</button>
@@ -126,6 +127,11 @@
           <option value="Complete Wellness">Complete Wellness</option>
         </select>
 
+        <select id="sub-mentor-filter">
+          <option value="all">All Mentors</option>
+          <option value="unassigned">No Mentor</option>
+        </select>
+
         <select id="sub-de-filter">
           <option value="all">All Executives</option>
           <option value="unassigned">Unassigned</option>
@@ -157,6 +163,7 @@
               <th>End</th>
               <th>Amount</th>
               <th>Status</th>
+              <th>Mentor</th>
               <th>Delivery Exec</th>
             </tr>
           </thead>
@@ -164,6 +171,49 @@
         </table>
         <p id="sub-loading-state" class="admin-loading">Loading subscribers…</p>
         <p id="sub-empty-state" class="admin-empty" hidden>No subscribers match these filters.</p>
+      </div>
+    </section>
+
+    <section id="tab-mentors" hidden>
+      <div class="admin-topbar">
+        <h1>Mentors</h1>
+        <div class="admin-stats">
+          <div class="admin-stat"><strong id="mentor-stat-total">0</strong><span>Total</span></div>
+          <div class="admin-stat"><strong id="mentor-stat-active">0</strong><span>Active</span></div>
+          <div class="admin-stat"><strong id="mentor-stat-shown">0</strong><span>Shown</span></div>
+        </div>
+      </div>
+
+      <div class="admin-filters">
+        <div class="status-pills">
+          <button class="status-pill active" data-mentor-status-filter="all">All</button>
+          <button class="status-pill" data-mentor-status-filter="active">Active</button>
+          <button class="status-pill" data-mentor-status-filter="inactive">Inactive</button>
+        </div>
+
+        <input type="search" id="mentor-search-input" placeholder="Search name, phone or specialization…">
+
+        <div class="admin-filter-spacer"></div>
+        <button id="mentor-clear-filters-btn" class="btn-clear-filters">Clear filters</button>
+        <button id="add-mentor-btn" class="btn btn-primary">+ Add Mentor</button>
+      </div>
+
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Specialization</th>
+              <th>Experience</th>
+              <th>Subscribers</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="mentor-tbody"></tbody>
+        </table>
+        <p id="mentor-loading-state" class="admin-loading">Loading mentors…</p>
+        <p id="mentor-empty-state" class="admin-empty" hidden>No mentors match these filters.</p>
       </div>
     </section>
 
@@ -314,6 +364,12 @@
         </div>
       </div>
       <div class="field">
+        <label for="sub-mentor">Mentor</label>
+        <select id="sub-mentor">
+          <option value="">Unassigned</option>
+        </select>
+      </div>
+      <div class="field">
         <label for="sub-delivery-exec">Delivery Executive</label>
         <select id="sub-delivery-exec">
           <option value="">Unassigned</option>
@@ -331,6 +387,68 @@
         <span id="sub-save-status" class="drawer-save-status"></span>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Mentor add/edit drawer -->
+<div id="mentor-drawer" class="admin-drawer" hidden>
+  <div class="admin-drawer-backdrop" id="mentor-drawer-backdrop"></div>
+  <div class="admin-drawer-panel">
+    <button class="admin-drawer-close" id="mentor-drawer-close">&times;</button>
+    <h2 id="mentor-drawer-title">Add Mentor</h2>
+
+    <form id="mentor-form">
+      <div class="field">
+        <label for="mentor-name">Full Name</label>
+        <input type="text" id="mentor-name" required>
+      </div>
+      <div class="field">
+        <label for="mentor-phone">Phone Number</label>
+        <input type="tel" id="mentor-phone" required>
+      </div>
+      <div class="field">
+        <label for="mentor-email">Email (optional)</label>
+        <input type="email" id="mentor-email">
+      </div>
+      <div class="field">
+        <label for="mentor-specialization">Specialization</label>
+        <input type="text" id="mentor-specialization" list="mentor-specialization-options" placeholder="e.g. Weight Loss">
+        <datalist id="mentor-specialization-options">
+          <option value="Weight Loss">
+          <option value="Diabetes Management">
+          <option value="Sports Nutrition">
+          <option value="PCOS">
+          <option value="General Wellness">
+        </datalist>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="mentor-experience">Experience (years)</label>
+          <input type="number" id="mentor-experience" min="0" step="1">
+        </div>
+        <div class="field">
+          <label for="mentor-status">Status</label>
+          <select id="mentor-status">
+            <option value="active" selected>Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="mentor-notes">Notes (optional)</label>
+        <textarea id="mentor-notes" placeholder="Anything worth remembering..."></textarea>
+      </div>
+
+      <div class="drawer-save-row">
+        <button type="submit" id="mentor-save-btn" class="btn btn-primary">Save Mentor</button>
+        <span id="mentor-save-status" class="drawer-save-status"></span>
+      </div>
+    </form>
+
+    <div id="mentor-assigned-section" class="assigned-section" hidden>
+      <span class="drawer-section-label">Assigned Subscribers (<span id="mentor-assigned-count">0</span>)</span>
+      <div id="mentor-assigned-list"></div>
+    </div>
   </div>
 </div>
 
@@ -387,7 +505,7 @@
       </div>
     </form>
 
-    <div id="de-assigned-section" hidden>
+    <div id="de-assigned-section" class="assigned-section" hidden>
       <span class="drawer-section-label">Assigned Subscribers (<span id="de-assigned-count">0</span>)</span>
       <div id="de-assigned-list"></div>
     </div>
