@@ -7,6 +7,8 @@
 // authenticated session (request.auth != null) for read/update —
 // the PIN is not just a client-side gate.
 // ============================================
+import { consultationDetailsHtml } from './consultation-format.js';
+
 const firebaseConfig = {
   apiKey: "AIzaSyA6q2cN75_iHY9-hzyb6C6gObjrUBFOH94",
   authDomain: "poshana-36204.firebaseapp.com",
@@ -669,18 +671,13 @@ async function loadSubscriberConsultations(subId) {
 }
 
 function consultationCardHtml(c) {
-  const lines = [];
-  if (c.weight || c.weight === 0) lines.push(`<strong>Weight:</strong> ${escapeHtml(String(c.weight))} kg`);
-  if (c.healthNotes) lines.push(`<strong>Health notes:</strong> ${escapeHtml(c.healthNotes)}`);
-  if (c.dietAdvice) lines.push(`<strong>Diet advice:</strong> ${escapeHtml(c.dietAdvice)}`);
-  if (c.nextFollowUp) lines.push(`<strong>Next follow-up:</strong> ${formatShortDate(c.nextFollowUp)}`);
   return `
     <div class="assigned-item consult-item">
       <div class="assigned-item-top">
         <strong>${formatShortDate(c.date)}</strong>
         <span class="assigned-item-meta">${escapeHtml(c.mentorName || '')}</span>
       </div>
-      <div class="assigned-item-meta">${lines.join('<br>') || 'No details.'}</div>
+      <div class="assigned-item-meta">${consultationDetailsHtml(c)}</div>
     </div>`;
 }
 

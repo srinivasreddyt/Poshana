@@ -7,6 +7,8 @@
 // consultations belonging to the signed-in mentor, so every query here
 // must filter on mentorId to be allowed.
 // ============================================
+import { consultationDetailsHtml, computeBmi } from './consultation-format.js';
+
 const firebaseConfig = {
   apiKey: "AIzaSyA6q2cN75_iHY9-hzyb6C6gObjrUBFOH94",
   authDomain: "poshana-36204.firebaseapp.com",
@@ -303,11 +305,6 @@ function renderClientDrawer() {
     return;
   }
   items.forEach((item) => {
-    const lines = [];
-    if (item.weight || item.weight === 0) lines.push(`<strong>Weight:</strong> ${escapeHtml(String(item.weight))} kg`);
-    if (item.healthNotes) lines.push(`<strong>Health notes:</strong> ${escapeHtml(item.healthNotes)}`);
-    if (item.dietAdvice) lines.push(`<strong>Diet advice:</strong> ${escapeHtml(item.dietAdvice)}`);
-    if (item.nextFollowUp) lines.push(`<strong>Next follow-up:</strong> ${formatShortDate(item.nextFollowUp)}`);
     const el = document.createElement('div');
     el.className = 'assigned-item consult-item editable';
     el.innerHTML = `
@@ -315,7 +312,7 @@ function renderClientDrawer() {
         <strong>${formatShortDate(item.date)}</strong>
         <span class="assigned-item-meta">Tap to edit</span>
       </div>
-      <div class="assigned-item-meta">${lines.join('<br>') || 'No details.'}</div>
+      <div class="assigned-item-meta">${consultationDetailsHtml(item)}</div>
     `;
     el.addEventListener('click', () => showConsultForm(item));
     list.appendChild(el);
@@ -326,17 +323,111 @@ function renderClientDrawer() {
 document.getElementById('new-consult-btn').addEventListener('click', () => showConsultForm(null));
 document.getElementById('consult-cancel-btn').addEventListener('click', hideConsultForm);
 
+// ---------- Medication list ----------
+const medsBox = document.getElementById('consult-meds');
+
+function addMedRow(value = '') {
+  const row = document.createElement('div');
+  row.className = 'med-row';
+  row.innerHTML = '<input type="text" placeholder="Medicine name, dose, frequency"><button type="button" class="med-remove" aria-label="Remove">&times;</button>';
+  row.querySelector('input').value = value;
+  row.querySelector('.med-remove').addEventListener('click', () => {
+    row.remove();
+    if (!medsBox.children.length) addMedRow();
+  });
+  medsBox.appendChild(row);
+}
+
+function setMeds(list) {
+  medsBox.innerHTML = '';
+  (list && list.length ? list : ['']).forEach((m) => addMedRow(m));
+}
+
+function readMeds() {
+  return Array.from(medsBox.querySelectorAll('input')).map((i) => i.value.trim()).filter(Boolean);
+}
+
+document.getElementById('consult-add-med').addEventListener('click', () => {
+  addMedRow();
+  medsBox.lastElementChild.querySelector('input').focus();
+});
+
+// ---------- Surgery toggle + BMI preview ----------
+const surgerySelect = document.getElementById('consult-surgery');
+function syncSurgeryDetails() {
+  document.getElementById('consult-surgery-details-field').hidden = surgerySelect.value !== 'yes';
+}
+surgerySelect.addEventListener('change', syncSurgeryDetails);
+
+function updateBmiPreview() {
+  const bmi = computeBmi(Number(document.getElementById('consult-height').value), Number(document.getElementById('consult-weight').value));
+  document.getElementById('consult-bmi').textContent = bmi ? `BMI: ${bmi}` : '';
+}
+['consult-height', 'consult-weight'].forEach((id) => document.getElementById(id).addEventListener('input', updateBmiPreview));
+
+// Editing shows that consultation's own values; a new one starts from the
+// client's most recent profile so stable details don't need retyping.
 function showConsultForm(item) {
   editingConsultId = item ? item.id : null;
+  const client = clients.find((x) => x.id === activeClientId);
+  const latest = consultationsFor(activeClientId)[0];
+  const source = item || latest || null;
+  const p = source?.profile || {};
+
   document.getElementById('consult-form-title').textContent = item ? 'Edit Consultation' : 'New Consultation';
+  document.getElementById('consult-prefill-note').hidden = !!item || !latest;
   document.getElementById('consult-date').value = item ? toDateInputValue(item.date) : toDateInputValue(new Date());
-  document.getElementById('consult-weight').value = item?.weight ?? '';
+
+  document.getElementById('consult-name').value = p.name || client?.name || '';
+  document.getElementById('consult-age').value = p.age ?? '';
+  document.getElementById('consult-gender').value = p.gender || '';
+  document.getElementById('consult-height').value = p.height ?? '';
+  document.getElementById('consult-weight').value = source?.weight ?? '';
+  document.getElementById('consult-comorbidities').value = p.comorbidities || '';
+  setMeds(p.medications);
+  surgerySelect.value = p.surgeryHistory === 'yes' ? 'yes' : 'no';
+  document.getElementById('consult-surgery-details').value = p.surgeryDetails || '';
+  syncSurgeryDetails();
+  document.getElementById('consult-allergies').value = p.allergies || '';
+  document.getElementById('consult-habit-alcohol').checked = !!p.habits?.alcohol;
+  document.getElementById('consult-habit-smoking').checked = !!p.habits?.smoking;
+  document.getElementById('consult-habit-other').value = p.habits?.other || '';
+  document.getElementById('consult-beliefs').value = p.foodBeliefs || '';
+  updateBmiPreview();
+
+  // Visit-specific fields never carry over.
   document.getElementById('consult-health').value = item?.healthNotes || '';
   document.getElementById('consult-diet').value = item?.dietAdvice || '';
   document.getElementById('consult-followup').value = item ? toDateInputValue(item.nextFollowUp) : '';
   document.getElementById('consult-save-status').textContent = '';
   consultForm.hidden = false;
   consultForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function readNumber(id) {
+  const v = document.getElementById(id).value;
+  return v === '' ? null : Number(v);
+}
+
+function readProfile() {
+  const surgeryHistory = surgerySelect.value;
+  return {
+    name: document.getElementById('consult-name').value.trim(),
+    age: readNumber('consult-age'),
+    gender: document.getElementById('consult-gender').value,
+    height: readNumber('consult-height'),
+    comorbidities: document.getElementById('consult-comorbidities').value.trim(),
+    medications: readMeds(),
+    surgeryHistory,
+    surgeryDetails: surgeryHistory === 'yes' ? document.getElementById('consult-surgery-details').value.trim() : '',
+    allergies: document.getElementById('consult-allergies').value.trim(),
+    habits: {
+      alcohol: document.getElementById('consult-habit-alcohol').checked,
+      smoking: document.getElementById('consult-habit-smoking').checked,
+      other: document.getElementById('consult-habit-other').value.trim(),
+    },
+    foodBeliefs: document.getElementById('consult-beliefs').value.trim(),
+  };
 }
 
 function hideConsultForm() {
@@ -355,10 +446,10 @@ consultForm.addEventListener('submit', async (e) => {
     return;
   }
 
-  const weightVal = document.getElementById('consult-weight').value;
   const fields = {
     date,
-    weight: weightVal === '' ? null : Number(weightVal),
+    profile: readProfile(),
+    weight: readNumber('consult-weight'),
     healthNotes: document.getElementById('consult-health').value.trim(),
     dietAdvice: document.getElementById('consult-diet').value.trim(),
     nextFollowUp: fromDateInputValue(document.getElementById('consult-followup').value),

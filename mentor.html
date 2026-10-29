@@ -110,16 +110,82 @@
 
       <form id="consult-form" class="consult-form" hidden>
         <h3 id="consult-form-title">New Consultation</h3>
+        <p id="consult-prefill-note" class="form-note mt-0" hidden>Profile pre-filled from the last consultation — update anything that has changed.</p>
+
+        <div class="field">
+          <label for="consult-date">Consultation date</label>
+          <input type="date" id="consult-date" required>
+        </div>
+
+        <span class="consult-group-label">Client profile</span>
+        <div class="field">
+          <label for="consult-name">Name</label>
+          <input type="text" id="consult-name">
+        </div>
         <div class="field-row">
           <div class="field">
-            <label for="consult-date">Date</label>
-            <input type="date" id="consult-date" required>
+            <label for="consult-age">Age</label>
+            <input type="number" id="consult-age" min="0" max="120" step="1">
+          </div>
+          <div class="field">
+            <label for="consult-gender">Gender</label>
+            <select id="consult-gender">
+              <option value="">Select</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="consult-height">Height (cm)</label>
+            <input type="number" id="consult-height" min="0" step="0.1">
           </div>
           <div class="field">
             <label for="consult-weight">Weight (kg)</label>
             <input type="number" id="consult-weight" min="0" step="0.1">
           </div>
         </div>
+        <p id="consult-bmi" class="form-note mt-0"></p>
+        <div class="field">
+          <label for="consult-comorbidities">Co-morbidities</label>
+          <input type="text" id="consult-comorbidities" placeholder="e.g. Diabetes, Hypertension, Thyroid">
+        </div>
+        <div class="field">
+          <label>Current medication</label>
+          <div id="consult-meds"></div>
+          <button type="button" id="consult-add-med" class="btn-clear-filters">+ Add medication</button>
+        </div>
+        <div class="field">
+          <label for="consult-surgery">History of surgery</label>
+          <select id="consult-surgery">
+            <option value="no">No</option>
+            <option value="yes">Yes</option>
+          </select>
+        </div>
+        <div class="field" id="consult-surgery-details-field" hidden>
+          <label for="consult-surgery-details">Surgery details</label>
+          <textarea id="consult-surgery-details" placeholder="Which surgery, and when?"></textarea>
+        </div>
+        <div class="field">
+          <label for="consult-allergies">Known allergies</label>
+          <input type="text" id="consult-allergies" placeholder="e.g. Peanuts, Lactose — or None">
+        </div>
+        <div class="field">
+          <label>Fixed habits</label>
+          <div class="habit-checks">
+            <label class="habit-check"><input type="checkbox" id="consult-habit-alcohol"> Alcohol</label>
+            <label class="habit-check"><input type="checkbox" id="consult-habit-smoking"> Smoking</label>
+          </div>
+          <input type="text" id="consult-habit-other" placeholder="Other habits (optional)">
+        </div>
+        <div class="field">
+          <label for="consult-beliefs">Belief systems on food</label>
+          <textarea id="consult-beliefs" placeholder="e.g. Vegetarian on Tuesdays, fasts during festivals, avoids onion & garlic…"></textarea>
+        </div>
+
+        <span class="consult-group-label">This consultation</span>
         <div class="field">
           <label for="consult-health">Health notes</label>
           <textarea id="consult-health" placeholder="Symptoms, energy, sleep, issues discussed…"></textarea>
