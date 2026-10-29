@@ -398,6 +398,7 @@ function showConsultForm(item) {
   document.getElementById('consult-age').value = p.age ?? '';
   document.getElementById('consult-gender').value = p.gender || '';
   document.getElementById('consult-height').value = p.height ?? '';
+  document.getElementById('consult-food-pref').value = p.foodPreference || '';
   document.getElementById('consult-weight').value = item?.weight ?? '';
   document.getElementById('consult-comorbidities').value = p.comorbidities || '';
   setMeds(p.medications);
@@ -432,6 +433,7 @@ function readProfile() {
     age: readNumber('consult-age'),
     gender: document.getElementById('consult-gender').value,
     height: readNumber('consult-height'),
+    foodPreference: document.getElementById('consult-food-pref').value,
     comorbidities: document.getElementById('consult-comorbidities').value.trim(),
     medications: readMeds(),
     surgeryHistory,

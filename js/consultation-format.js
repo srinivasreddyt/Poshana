@@ -51,6 +51,7 @@ export function profileHtml(p) {
   if (p.name) lines.push(line('Name', p.name));
   const basics = [p.age ? `${p.age} yrs` : '', p.gender || '', p.height ? `${p.height} cm` : ''].filter(Boolean);
   if (basics.length) lines.push(escapeHtml(basics.join(' · ')));
+  lines.push(line('Food preference', p.foodPreference || 'Not recorded'));
   lines.push(line('Co-morbidities', p.comorbidities || 'None'));
   lines.push(line('Medication', Array.isArray(p.medications) && p.medications.length ? p.medications.join('; ') : 'None'));
   lines.push(line('Surgery history', p.surgeryHistory === 'yes' ? (p.surgeryDetails || 'Yes') : 'No'));
