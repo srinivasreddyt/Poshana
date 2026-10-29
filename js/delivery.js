@@ -249,8 +249,10 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-function mapsUrl(address) {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+// Exact coordinates when the admin saved them, otherwise the address text.
+function mapsUrl(sub) {
+  const query = sub.location ? `${sub.location.lat},${sub.location.lng}` : sub.address;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
 function execLabel(sub) {
@@ -466,8 +468,8 @@ function renderSubDrawer() {
   callBtn.href = s.phone ? `tel:+91${normalizePhone(s.phone)}` : '#';
   callBtn.textContent = `📞 Call ${s.name || ''}`.trim();
   const mapBtn = document.getElementById('sub-map-btn');
-  mapBtn.hidden = !s.address;
-  mapBtn.href = s.address ? mapsUrl(s.address) : '#';
+  mapBtn.hidden = !s.address && !s.location;
+  mapBtn.href = s.address || s.location ? mapsUrl(s) : '#';
 
   document.getElementById('sub-phone').textContent = s.phone || '—';
   document.getElementById('sub-address').textContent = s.address || '—';

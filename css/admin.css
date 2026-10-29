@@ -192,6 +192,8 @@
 }
 .admin-filters input[type="search"] { min-width: 180px; }
 
+.file-btn { cursor: pointer; }
+
 .report-range {
   display: inline-flex;
   align-items: center;

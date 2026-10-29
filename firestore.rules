@@ -63,6 +63,10 @@ service cloud.firestore {
       allow read: if isAdmin() || (request.auth != null && request.auth.uid == uid);
       allow write: if isAdmin();
     }
+    // Mentor / delivery executive ID proof files ({collection}_{personId}).
+    match /idProofs/{docId} {
+      allow read, write: if isAdmin();
+    }
     match /mentors/{mentorId} {
       allow read: if isAdmin() || (isMentor() && mentorId == myMentorId());
       allow write: if isAdmin();

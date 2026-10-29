@@ -26,7 +26,7 @@ const {
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword,
 } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
 const {
-  getFirestore, collection, query, where, orderBy, onSnapshot, doc, updateDoc, addDoc, setDoc, deleteDoc, getDocs, serverTimestamp,
+  getFirestore, collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, addDoc, setDoc, deleteDoc, getDocs, serverTimestamp,
 } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
 
 const app = initializeApp(firebaseConfig);
@@ -836,6 +836,9 @@ function openSubscriberDrawer(id) {
   document.getElementById('sub-email').value = sub?.email || '';
   document.getElementById('sub-plan').value = sub?.plan || 'Balanced';
   document.getElementById('sub-address').value = sub?.address || '';
+  document.getElementById('sub-lat').value = sub?.location?.lat ?? '';
+  document.getElementById('sub-lng').value = sub?.location?.lng ?? '';
+  syncSubLocationPreview();
   document.getElementById('sub-start-date').value = sub ? toDateInputValue(sub.startDate) : '';
   document.getElementById('sub-duration').value = sub?.durationMonths || '1';
   document.getElementById('sub-amount').value = sub?.amount ?? '';
@@ -892,6 +895,29 @@ function closeSubscriberDrawer() {
   activeSubscriberId = null;
 }
 
+// Optional delivery coordinates: both or neither, within valid ranges.
+// Returns { location } on success or { error }.
+function readSubLocation() {
+  const latVal = document.getElementById('sub-lat').value.trim();
+  const lngVal = document.getElementById('sub-lng').value.trim();
+  if (latVal === '' && lngVal === '') return { location: null };
+  const lat = Number(latVal);
+  const lng = Number(lngVal);
+  if (latVal === '' || lngVal === '' || !Number.isFinite(lat) || !Number.isFinite(lng)
+    || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return { error: 'Enter both latitude (-90 to 90) and longitude (-180 to 180), or leave both empty.' };
+  }
+  return { location: { lat, lng } };
+}
+
+function syncSubLocationPreview() {
+  const link = document.getElementById('sub-location-preview');
+  const { location } = readSubLocation();
+  link.hidden = !location;
+  if (location) link.href = `https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}`;
+}
+['sub-lat', 'sub-lng'].forEach((id) => document.getElementById(id).addEventListener('input', syncSubLocationPreview));
+
 document.getElementById('add-subscriber-btn').addEventListener('click', () => openSubscriberDrawer(null));
 document.getElementById('sub-drawer-close').addEventListener('click', closeSubscriberDrawer);
 document.getElementById('sub-drawer-backdrop').addEventListener('click', closeSubscriberDrawer);
@@ -910,6 +936,11 @@ subForm.addEventListener('submit', async (e) => {
     saveStatus.textContent = 'Name, phone and start date are required.';
     return;
   }
+  const { location, error: locationError } = readSubLocation();
+  if (locationError) {
+    saveStatus.textContent = locationError;
+    return;
+  }
 
   const [startY, startM, startD] = startDateVal.split('-').map(Number);
   const startDate = new Date(startY, startM - 1, startD);
@@ -925,6 +956,7 @@ subForm.addEventListener('submit', async (e) => {
     email: document.getElementById('sub-email').value.trim(),
     plan: document.getElementById('sub-plan').value,
     address: document.getElementById('sub-address').value.trim(),
+    location,
     startDate,
     durationMonths,
     endDate,
@@ -969,7 +1001,11 @@ function startListeningDeliveryExecs() {
     refreshAssigneeFilters();
     renderSubscribersTable();
     renderReport();
-    if (activeDeId && !deDrawer.hidden) renderLogin('de', allDeliveryExecs.find((x) => x.id === activeDeId));
+    if (activeDeId && !deDrawer.hidden) {
+      const de = allDeliveryExecs.find((x) => x.id === activeDeId);
+      renderLogin('de', de);
+      renderIdProof('de', de);
+    }
   }, (err) => {
     loadingState.textContent = 'Could not load delivery executives: ' + err.message;
   });
@@ -1086,6 +1122,7 @@ function openDeDrawer(id) {
 
   renderAssignedList('de', 'deliveryExecId', id, closeDeDrawer);
   renderLogin('de', de);
+  renderIdProof('de', de);
 
   deDrawer.hidden = false;
 }
@@ -1200,7 +1237,11 @@ function startListeningMentors() {
     renderBranchTable();
     refreshAssigneeFilters();
     renderSubscribersTable();
-    if (activeMentorId && !mentorDrawer.hidden) renderMentorLogin(allMentors.find((x) => x.id === activeMentorId));
+    if (activeMentorId && !mentorDrawer.hidden) {
+      const m = allMentors.find((x) => x.id === activeMentorId);
+      renderMentorLogin(m);
+      renderIdProof('mentor', m);
+    }
   }, (err) => {
     loadingState.textContent = 'Could not load mentors: ' + err.message;
   });
@@ -1305,6 +1346,7 @@ function openMentorDrawer(id) {
 
   renderAssignedList('mentor', 'mentorId', id, closeMentorDrawer);
   renderMentorLogin(m);
+  renderIdProof('mentor', m);
 
   mentorDrawer.hidden = false;
 }
@@ -1419,6 +1461,143 @@ Object.entries(loginKinds).forEach(([prefix, kind]) => {
         : 'Could not create login: ' + err.message;
     } finally {
       btn.disabled = false;
+    }
+  });
+});
+
+// ---------- Mentor & delivery executive ID proofs ----------
+// The file itself lives in idProofs/{collection}_{personId} as a data URL
+// (admin-only, and kept out of the people listeners so they stay small);
+// the person's record only carries idProof: { fileName, mimeType, uploadedAt }.
+// Firestore documents max out at 1 MiB, so photos are shrunk to JPEG and
+// PDFs must be under MAX_ID_PROOF_BYTES.
+const MAX_ID_PROOF_BYTES = 700 * 1024;
+const MAX_ID_PROOF_DATA_URL = 950 * 1024;
+
+function idProofDocId(prefix, record) {
+  return `${loginKinds[prefix].collection}_${record.id}`;
+}
+
+function renderIdProof(prefix, record) {
+  const section = document.getElementById(`${prefix}-idproof-section`);
+  document.getElementById(`${prefix}-idproof-status`).textContent = '';
+  if (!record) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  const proof = record.idProof;
+  document.getElementById(`${prefix}-idproof-info`).textContent = proof
+    ? `${proof.fileName} · uploaded ${formatShortDate(proof.uploadedAt)}`
+    : 'No ID proof uploaded yet. Upload a photo or PDF of their Aadhaar, PAN, driving licence or similar.';
+  document.getElementById(`${prefix}-idproof-view`).hidden = !proof;
+  document.getElementById(`${prefix}-idproof-remove`).hidden = !proof;
+  document.getElementById(`${prefix}-idproof-upload-label`).textContent = proof ? 'Replace' : 'Upload';
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+// Re-encodes a photo as JPEG, shrinking dimensions / quality until it fits.
+async function compressImage(file) {
+  const img = new Image();
+  img.src = await readFileAsDataUrl(file);
+  await img.decode();
+  let scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(img.naturalWidth * scale);
+    canvas.height = Math.round(img.naturalHeight * scale);
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    for (const quality of [0.85, 0.7, 0.55]) {
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      if (dataUrl.length <= MAX_ID_PROOF_DATA_URL) return dataUrl;
+    }
+    scale *= 0.75;
+  }
+  throw new Error('Image is too large even after compressing.');
+}
+
+Object.entries(loginKinds).forEach(([prefix, kind]) => {
+  const status = () => document.getElementById(`${prefix}-idproof-status`);
+
+  document.getElementById(`${prefix}-idproof-file`).addEventListener('change', async (e) => {
+    const input = e.target;
+    const file = input.files[0];
+    input.value = '';
+    const record = kind.active();
+    if (!file || !record) return;
+
+    let dataUrl;
+    let mimeType = file.type;
+    let fileName = file.name;
+    try {
+      if (file.type.startsWith('image/')) {
+        status().textContent = 'Compressing…';
+        dataUrl = await compressImage(file);
+        mimeType = 'image/jpeg';
+        fileName = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+      } else if (file.type === 'application/pdf') {
+        if (file.size > MAX_ID_PROOF_BYTES) {
+          status().textContent = 'PDF must be under 700 KB. Try a photo of the ID instead.';
+          return;
+        }
+        dataUrl = await readFileAsDataUrl(file);
+      } else {
+        status().textContent = 'Please choose a photo or a PDF.';
+        return;
+      }
+      status().textContent = 'Uploading…';
+      await setDoc(doc(db, 'idProofs', idProofDocId(prefix, record)), {
+        personId: record.id,
+        collection: kind.collection,
+        fileName,
+        mimeType,
+        dataUrl,
+        uploadedAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, kind.collection, record.id), {
+        idProof: { fileName, mimeType, uploadedAt: serverTimestamp() },
+        updatedAt: serverTimestamp(),
+      });
+      status().textContent = 'Uploaded.';
+    } catch (err) {
+      status().textContent = 'Could not upload: ' + err.message;
+    }
+  });
+
+  // The tab is opened before the await so popup blockers allow it.
+  document.getElementById(`${prefix}-idproof-view`).addEventListener('click', async () => {
+    const record = kind.active();
+    if (!record) return;
+    const win = window.open('', '_blank');
+    try {
+      const snap = await getDoc(doc(db, 'idProofs', idProofDocId(prefix, record)));
+      if (!snap.exists()) throw new Error('file not found');
+      const blob = await (await fetch(snap.data().dataUrl)).blob();
+      const url = URL.createObjectURL(blob);
+      if (win) win.location = url;
+      else window.location.assign(url);
+    } catch (err) {
+      if (win) win.close();
+      status().textContent = 'Could not open: ' + err.message;
+    }
+  });
+
+  document.getElementById(`${prefix}-idproof-remove`).addEventListener('click', async () => {
+    const record = kind.active();
+    if (!record || !confirm(`Remove ${record.name || 'this person'}'s ID proof?`)) return;
+    try {
+      await deleteDoc(doc(db, 'idProofs', idProofDocId(prefix, record)));
+      await updateDoc(doc(db, kind.collection, record.id), { idProof: null, updatedAt: serverTimestamp() });
+    } catch (err) {
+      status().textContent = 'Could not remove: ' + err.message;
     }
   });
 });

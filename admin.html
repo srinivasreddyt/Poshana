@@ -525,6 +525,17 @@
       </div>
       <div class="field-row">
         <div class="field">
+          <label for="sub-lat">Latitude (optional)</label>
+          <input type="number" id="sub-lat" step="any" min="-90" max="90" placeholder="e.g. 16.5449">
+        </div>
+        <div class="field">
+          <label for="sub-lng">Longitude (optional)</label>
+          <input type="number" id="sub-lng" step="any" min="-180" max="180" placeholder="e.g. 81.5212">
+        </div>
+      </div>
+      <p class="form-note mt-0">Tip: in Google Maps, long-press the house and copy the two numbers shown. <a id="sub-location-preview" href="#" target="_blank" rel="noopener" hidden>Check on map ↗</a></p>
+      <div class="field-row">
+        <div class="field">
           <label for="sub-start-date">Start Date</label>
           <input type="date" id="sub-start-date" required>
         </div>
@@ -645,6 +656,17 @@
       </div>
     </form>
 
+    <div id="mentor-idproof-section" class="assigned-section" hidden>
+      <span class="drawer-section-label">ID Proof</span>
+      <p id="mentor-idproof-info" class="form-note mt-0"></p>
+      <div class="drawer-save-row">
+        <button type="button" id="mentor-idproof-view" class="btn btn-outline btn-sm" hidden>View</button>
+        <label class="btn btn-primary btn-sm file-btn"><span id="mentor-idproof-upload-label">Upload</span><input type="file" id="mentor-idproof-file" accept="image/*,application/pdf" hidden></label>
+        <button type="button" id="mentor-idproof-remove" class="btn-clear-filters" hidden>Remove</button>
+        <span id="mentor-idproof-status" class="drawer-save-status"></span>
+      </div>
+    </div>
+
     <div id="mentor-login-section" class="assigned-section" hidden>
       <span class="drawer-section-label">Mentor Login</span>
       <p id="mentor-login-info" class="form-note mt-0"></p>
@@ -723,6 +745,17 @@
         <span id="de-save-status" class="drawer-save-status"></span>
       </div>
     </form>
+
+    <div id="de-idproof-section" class="assigned-section" hidden>
+      <span class="drawer-section-label">ID Proof</span>
+      <p id="de-idproof-info" class="form-note mt-0"></p>
+      <div class="drawer-save-row">
+        <button type="button" id="de-idproof-view" class="btn btn-outline btn-sm" hidden>View</button>
+        <label class="btn btn-primary btn-sm file-btn"><span id="de-idproof-upload-label">Upload</span><input type="file" id="de-idproof-file" accept="image/*,application/pdf" hidden></label>
+        <button type="button" id="de-idproof-remove" class="btn-clear-filters" hidden>Remove</button>
+        <span id="de-idproof-status" class="drawer-save-status"></span>
+      </div>
+    </div>
 
     <div id="de-login-section" class="assigned-section" hidden>
       <span class="drawer-section-label">Executive Login</span>
