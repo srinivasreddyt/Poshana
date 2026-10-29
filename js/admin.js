@@ -2448,6 +2448,83 @@ function renderReportDrawer() {
   });
 }
 
+// ---------- Subscribers tab export ----------
+// Exports exactly the rows the Subscribers tab is showing (all filters
+// applied), with the active filters listed in the details block.
+// Indian digit grouping (₹1,00,000), which Excel only supports via ranges.
+const INR_FORMAT = '[>=10000000]"₹"##","##","##","##0;[>=100000]"₹"##","##","##0;"₹"##,##0';
+
+function describeSubFilters() {
+  const text = (id) => document.getElementById(id).selectedOptions[0]?.textContent;
+  const parts = [];
+  if (subState.statusFilter !== 'all') parts.push(`Status: ${subStatusLabel[subState.statusFilter] || subState.statusFilter}`);
+  if (subState.planFilter !== 'all') parts.push(`Plan: ${subState.planFilter}`);
+  if (subState.mentorFilter !== 'all') parts.push(`Mentor: ${text('sub-mentor-filter')}`);
+  if (subState.deFilter !== 'all') parts.push(`Delivery executive: ${text('sub-de-filter')}`);
+  const branchQuery = document.getElementById('sub-branch-filter').value.trim();
+  if (branchQuery) parts.push(`Branch search: ${branchQuery}`);
+  const search = document.getElementById('sub-search-input').value.trim();
+  if (search) parts.push(`Search: ${search}`);
+  if (subState.dateType !== 'all') {
+    const input = { day: subDayInput, month: subMonthInput, year: subYearInput }[subState.dateType];
+    parts.push(`Active on ${subState.dateType}: ${input.value}`);
+  }
+  return parts.length ? parts.join(' · ') : 'None (all subscribers)';
+}
+
+document.getElementById('sub-excel-btn').addEventListener('click', (e) => withBusyButton(e.currentTarget, async () => {
+  const ExcelJS = await loadExcelJs();
+  const subs = getFilteredSubscribers().sort((a, b) =>
+    (a.branchName || '').localeCompare(b.branchName || '') || (a.name || '').localeCompare(b.name || ''));
+  const branch = selectedBranch === 'all' ? 'All branches' : branchLabel(allBranches.find((b) => b.id === selectedBranch) || {});
+  const day = (ts) => excelDate(toDateInputValue(ts));
+  const totalAmount = subs.reduce((n, s) => n + (Number(s.amount) || 0), 0);
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Poshaná';
+  addReportSheet(workbook, 'Subscribers', {
+    title: 'Poshaná — Subscribers',
+    info: [
+      ['Branch', branch],
+      ['Filters', describeSubFilters()],
+      ['Subscribers', subs.length],
+      ['Generated', generatedAt()],
+    ],
+    columns: [
+      { header: 'Name', width: 22 },
+      { header: 'Phone', width: 14 },
+      { header: 'Email', width: 24 },
+      { header: 'Branch', width: 14 },
+      { header: 'Plan', width: 18 },
+      { header: 'Status', width: 11 },
+      { header: 'Start date', width: 14, align: 'center', numFmt: 'dd mmm yyyy' },
+      { header: 'End date', width: 14, align: 'center', numFmt: 'dd mmm yyyy' },
+      { header: 'Months', width: 9, align: 'center' },
+      { header: 'Amount (₹)', width: 13, align: 'right', numFmt: INR_FORMAT },
+      { header: 'Mentor', width: 18 },
+      { header: 'Delivery executive', width: 20 },
+      { header: 'Address', width: 34 },
+      { header: 'Latitude', width: 11, align: 'center' },
+      { header: 'Longitude', width: 11, align: 'center' },
+      { header: 'Notes', width: 30 },
+    ],
+    rows: subs.map((s) => [
+      s.name, s.phone, s.email, s.branchName, s.plan, subStatusLabel[s.status] || s.status,
+      day(s.startDate), day(s.endDate), Number(s.durationMonths) || null,
+      s.amount === undefined || s.amount === null || s.amount === '' ? null : Number(s.amount),
+      s.mentorName || 'Unassigned', s.deliveryExecName || 'Unassigned', s.address,
+      s.location?.lat ?? null, s.location?.lng ?? null, s.notes,
+    ]),
+    totals: ['TOTAL', `${subs.length} subscribers`, '', '', '', '', null, null, null, totalAmount],
+    // Address (col 13) and Notes (col 16) can be long, so wrap them.
+    styleRow: (row) => {
+      [13, 16].forEach((col) => { row.getCell(col).alignment = { vertical: 'middle', wrapText: true }; });
+    },
+  });
+
+  await downloadWorkbook(workbook, reportFileName('poshana subscribers', branch, toDateInputValue(new Date())));
+}));
+
 document.getElementById('report-drawer-csv-btn').addEventListener('click', (e) => withBusyButton(e.currentTarget, async () => {
   const sub = allSubscribers.find((s) => s.id === activeReportSubId);
   if (!sub) return;
