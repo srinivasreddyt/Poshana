@@ -1,0 +1,68 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'admin@poshana-admin.local';
+    }
+    function isMentor() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/mentorLogins/$(request.auth.uid));
+    }
+    function myMentorId() {
+      return get(/databases/$(database)/documents/mentorLogins/$(request.auth.uid)).data.mentorId;
+    }
+    function isDeliveryExec() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/deliveryLogins/$(request.auth.uid));
+    }
+    function myDeId() {
+      return get(/databases/$(database)/documents/deliveryLogins/$(request.auth.uid)).data.deliveryExecId;
+    }
+    function myDeBranch() {
+      return get(/databases/$(database)/documents/deliveryExecutives/$(myDeId())).data.get('branchId', null);
+    }
+
+    match /enquiries/{docId} {
+      allow create: if request.resource.data.status == 'new';
+      allow read, update: if isAdmin();
+    }
+    match /branches/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /subscribers/{docId} {
+      allow read: if isAdmin()
+        || (isMentor() && resource.data.mentorId == myMentorId())
+        || (isDeliveryExec() && myDeBranch() != null && resource.data.branchId == myDeBranch());
+      allow write: if isAdmin();
+    }
+    match /deliveryExecutives/{deId} {
+      allow read: if isAdmin() || (isDeliveryExec() && deId == myDeId());
+      allow write: if isAdmin();
+    }
+    match /deliveryLogins/{uid} {
+      allow read: if isAdmin() || (request.auth != null && request.auth.uid == uid);
+      allow write: if isAdmin();
+    }
+    match /mentors/{mentorId} {
+      allow read: if isAdmin() || (isMentor() && mentorId == myMentorId());
+      allow write: if isAdmin();
+    }
+    match /mentorLogins/{uid} {
+      allow read: if isAdmin() || (request.auth != null && request.auth.uid == uid);
+      allow write: if isAdmin();
+    }
+    match /consultations/{docId} {
+      allow read: if isAdmin() || (isMentor() && resource.data.mentorId == myMentorId());
+      allow create: if isMentor()
+        && request.resource.data.mentorId == myMentorId()
+        && get(/databases/$(database)/documents/subscribers/$(request.resource.data.subscriberId)).data.mentorId == myMentorId();
+      allow update: if isMentor()
+        && resource.data.mentorId == myMentorId()
+        && request.resource.data.mentorId == resource.data.mentorId
+        && request.resource.data.subscriberId == resource.data.subscriberId;
+      allow delete: if isAdmin();
+    }
+  }
+}

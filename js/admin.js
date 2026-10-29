@@ -813,16 +813,17 @@ function populateAssigneeSelect(selectId, people, selectedId, detailKey) {
     const opt = document.createElement('option');
     opt.value = p.id;
     opt.textContent = p.name + (p[detailKey] ? ' — ' + p[detailKey] : '');
+    opt.dataset.name = p.name || '';
     select.appendChild(opt);
   });
   select.value = selectedId || '';
 }
 
-// Returns the selected person's id and display label, or nulls when unassigned.
+// Returns the selected person's id and name, or nulls when unassigned.
 function readAssigneeSelect(selectId) {
   const select = document.getElementById(selectId);
   if (!select.value) return { id: null, name: null };
-  return { id: select.value, name: select.options[select.selectedIndex].textContent };
+  return { id: select.value, name: select.options[select.selectedIndex].dataset.name };
 }
 
 function openSubscriberDrawer(id) {
@@ -968,6 +969,7 @@ function startListeningDeliveryExecs() {
     renderBranchTable();
     refreshAssigneeFilters();
     renderSubscribersTable();
+    if (activeDeId && !deDrawer.hidden) renderLogin('de', allDeliveryExecs.find((x) => x.id === activeDeId));
   }, (err) => {
     loadingState.textContent = 'Could not load delivery executives: ' + err.message;
   });
@@ -1083,6 +1085,7 @@ function openDeDrawer(id) {
   document.getElementById('de-save-status').textContent = '';
 
   renderAssignedList('de', 'deliveryExecId', id, closeDeDrawer);
+  renderLogin('de', de);
 
   deDrawer.hidden = false;
 }
@@ -1306,38 +1309,61 @@ function openMentorDrawer(id) {
   mentorDrawer.hidden = false;
 }
 
-// ---------- Mentor login ----------
-// Mentors sign in on mentor.html with phone + PIN. Under the hood that is a
-// Firebase Auth email/password account whose email is derived from the
-// phone number (must match mentorLoginEmail in js/mentor.js).
+// ---------- Mentor & delivery executive logins ----------
+// Mentors sign in on mentor.html and delivery executives on delivery.html,
+// both with phone + PIN. Under the hood that is a Firebase Auth
+// email/password account whose email is derived from the phone number (must
+// match loginEmail in js/mentor.js / js/delivery.js).
 function normalizePhone(phone) {
   return String(phone || '').replace(/\D/g, '').slice(-10);
 }
 
-function mentorLoginEmail(phone) {
-  return `m${normalizePhone(phone)}@poshana-mentor.local`;
-}
+const loginKinds = {
+  mentor: {
+    who: 'mentor',
+    page: 'mentor.html',
+    email: (phone) => `m${normalizePhone(phone)}@poshana-mentor.local`,
+    collection: 'mentors',
+    loginsCollection: 'mentorLogins',
+    idField: 'mentorId',
+    active: () => allMentors.find((x) => x.id === activeMentorId),
+  },
+  de: {
+    who: 'executive',
+    page: 'delivery.html',
+    email: (phone) => `d${normalizePhone(phone)}@poshana-delivery.local`,
+    collection: 'deliveryExecutives',
+    loginsCollection: 'deliveryLogins',
+    idField: 'deliveryExecId',
+    active: () => allDeliveryExecs.find((x) => x.id === activeDeId),
+  },
+};
 
-function renderMentorLogin(m) {
-  const section = document.getElementById('mentor-login-section');
-  const info = document.getElementById('mentor-login-info');
-  const createBox = document.getElementById('mentor-login-create');
-  document.getElementById('mentor-login-pin').value = '';
-  document.getElementById('mentor-login-status').textContent = '';
+function renderLogin(prefix, record) {
+  const section = document.getElementById(`${prefix}-login-section`);
+  const info = document.getElementById(`${prefix}-login-info`);
+  const createBox = document.getElementById(`${prefix}-login-create`);
+  const { who, page } = loginKinds[prefix];
+  document.getElementById(`${prefix}-login-pin`).value = '';
+  document.getElementById(`${prefix}-login-status`).textContent = '';
 
-  if (!m) {
+  if (!record) {
     section.hidden = true;
     return;
   }
   section.hidden = false;
 
-  if (m.loginUid) {
-    info.textContent = `Login active — mentor signs in at mentor.html with phone ${m.loginPhone} and their PIN.`;
+  if (record.loginUid) {
+    info.textContent = `Login active — ${who} signs in at ${page} with phone ${record.loginPhone} and their PIN.`;
     createBox.hidden = true;
   } else {
-    info.textContent = 'No login yet. Set a PIN to let this mentor sign in with their phone number.';
+    info.textContent = `No login yet. Set a PIN to let this ${who} sign in with their phone number.`;
     createBox.hidden = false;
   }
+}
+
+function renderMentorLogin(m) {
+  renderLogin('mentor', m);
 }
 
 // Creating a user with the client SDK signs that user in, so it's done on a
@@ -1350,40 +1376,42 @@ function getSecondaryAuth() {
   return secondaryAuth;
 }
 
-document.getElementById('mentor-login-btn').addEventListener('click', async () => {
-  const status = document.getElementById('mentor-login-status');
-  const btn = document.getElementById('mentor-login-btn');
-  const m = allMentors.find((x) => x.id === activeMentorId);
-  const pin = document.getElementById('mentor-login-pin').value.trim();
-  const phone = normalizePhone(m?.phone);
+Object.entries(loginKinds).forEach(([prefix, kind]) => {
+  document.getElementById(`${prefix}-login-btn`).addEventListener('click', async () => {
+    const status = document.getElementById(`${prefix}-login-status`);
+    const btn = document.getElementById(`${prefix}-login-btn`);
+    const record = kind.active();
+    const pin = document.getElementById(`${prefix}-login-pin`).value.trim();
+    const phone = normalizePhone(record?.phone);
 
-  if (!m) return;
-  if (phone.length !== 10) {
-    status.textContent = 'Save a valid 10-digit phone number for this mentor first.';
-    return;
-  }
-  if (!/^\d{6}$/.test(pin)) {
-    status.textContent = 'PIN must be exactly 6 digits.';
-    return;
-  }
+    if (!record) return;
+    if (phone.length !== 10) {
+      status.textContent = `Save a valid 10-digit phone number for this ${kind.who} first.`;
+      return;
+    }
+    if (!/^\d{6}$/.test(pin)) {
+      status.textContent = 'PIN must be exactly 6 digits.';
+      return;
+    }
 
-  btn.disabled = true;
-  status.textContent = 'Creating login…';
-  const tempAuth = getSecondaryAuth();
-  try {
-    const cred = await createUserWithEmailAndPassword(tempAuth, mentorLoginEmail(phone), pin);
-    const uid = cred.user.uid;
-    await signOut(tempAuth);
-    await setDoc(doc(db, 'mentorLogins', uid), { mentorId: m.id, phone, createdAt: serverTimestamp() });
-    await updateDoc(doc(db, 'mentors', m.id), { loginUid: uid, loginPhone: phone, updatedAt: serverTimestamp() });
-    status.textContent = 'Login created.';
-  } catch (err) {
-    status.textContent = err.code === 'auth/email-already-in-use'
-      ? 'A login already exists for this phone number.'
-      : 'Could not create login: ' + err.message;
-  } finally {
-    btn.disabled = false;
-  }
+    btn.disabled = true;
+    status.textContent = 'Creating login…';
+    const tempAuth = getSecondaryAuth();
+    try {
+      const cred = await createUserWithEmailAndPassword(tempAuth, kind.email(phone), pin);
+      const uid = cred.user.uid;
+      await signOut(tempAuth);
+      await setDoc(doc(db, kind.loginsCollection, uid), { [kind.idField]: record.id, phone, createdAt: serverTimestamp() });
+      await updateDoc(doc(db, kind.collection, record.id), { loginUid: uid, loginPhone: phone, updatedAt: serverTimestamp() });
+      status.textContent = 'Login created.';
+    } catch (err) {
+      status.textContent = err.code === 'auth/email-already-in-use'
+        ? 'A login already exists for this phone number.'
+        : 'Could not create login: ' + err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
 });
 
 function closeMentorDrawer() {

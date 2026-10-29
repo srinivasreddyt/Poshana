@@ -2,7 +2,7 @@
 // Poshaná mentor portal.
 //
 // Mentors sign in with phone + PIN, which maps to a Firebase Auth
-// email/password account created by the admin (see mentorLoginEmail in
+// email/password account created by the admin (see loginKinds in
 // js/admin.js). Firestore rules only return the subscribers and
 // consultations belonging to the signed-in mentor, so every query here
 // must filter on mentorId to be allowed.

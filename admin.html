@@ -656,6 +656,21 @@
       </div>
     </form>
 
+    <div id="de-login-section" class="assigned-section" hidden>
+      <span class="drawer-section-label">Executive Login</span>
+      <p id="de-login-info" class="form-note mt-0"></p>
+      <div id="de-login-create">
+        <div class="field">
+          <label for="de-login-pin">Set a 6-digit PIN</label>
+          <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="de-login-pin" autocomplete="new-password" placeholder="••••••">
+        </div>
+        <div class="drawer-save-row">
+          <button type="button" id="de-login-btn" class="btn btn-primary">Create Login</button>
+          <span id="de-login-status" class="drawer-save-status"></span>
+        </div>
+      </div>
+    </div>
+
     <div id="de-assigned-section" class="assigned-section" hidden>
       <span class="drawer-section-label">Assigned Subscribers (<span id="de-assigned-count">0</span>)</span>
       <div id="de-assigned-list"></div>
