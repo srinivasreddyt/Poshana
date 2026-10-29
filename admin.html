@@ -206,6 +206,11 @@
 
         <input type="search" id="mentor-search-input" placeholder="Search name, phone or specialization…">
 
+        <div class="branch-search">
+          <input type="search" id="mentor-branch-filter" placeholder="Branch (type 2 letters)…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="mentor-branch-suggestions">
+          <ul id="mentor-branch-suggestions" class="branch-suggestions" role="listbox" hidden></ul>
+        </div>
+
         <div class="admin-filter-spacer"></div>
         <button id="mentor-clear-filters-btn" class="btn-clear-filters">Clear filters</button>
         <button id="add-mentor-btn" class="btn btn-primary">+ Add Mentor</button>
@@ -249,6 +254,11 @@
         </div>
 
         <input type="search" id="de-search-input" placeholder="Search name, phone or area…">
+
+        <div class="branch-search">
+          <input type="search" id="de-branch-filter" placeholder="Branch (type 2 letters)…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="de-branch-suggestions">
+          <ul id="de-branch-suggestions" class="branch-suggestions" role="listbox" hidden></ul>
+        </div>
 
         <select id="de-vehicle-filter">
           <option value="all">All Vehicles</option>

@@ -308,7 +308,7 @@ document.getElementById('branch-switcher').addEventListener('change', (e) => {
 });
 
 function rerenderBranchScoped() {
-  syncSubBranchFilter();
+  syncBranchFilters();
   refreshAssigneeFilters();
   renderSubStats();
   renderSubscribersTable();
@@ -490,8 +490,6 @@ const subState = {
   mentorFilter: 'all',
   deFilter: 'all',
   dateType: 'all',
-  branchQuery: '',
-  branchId: null,
 };
 
 document.querySelectorAll('[data-sub-status-filter]').forEach((btn) => {
@@ -508,87 +506,101 @@ document.getElementById('sub-search-input').addEventListener('input', (e) => {
   renderSubscribersTable();
 });
 
-// Branch type-ahead: from 2 letters on, suggests matching branches and
-// narrows the table to them; picking a suggestion filters to that branch.
-const subBranchInput = document.getElementById('sub-branch-filter');
-const subBranchSuggestions = document.getElementById('sub-branch-suggestions');
-
+// ---------- Branch type-ahead filter ----------
+// Used by the Subscribers, Mentors and Delivery Executives tabs. From 2
+// letters on it suggests matching branches and narrows the table to them;
+// picking a suggestion filters to that branch. It only shows while the
+// sidebar is on "All branches" (see syncBranchFilters).
 function matchingBranches(query) {
   return query.length < 2 ? [] : allBranches.filter((b) => branchLabel(b).toLowerCase().includes(query));
 }
 
-function hideBranchSuggestions() {
-  subBranchSuggestions.hidden = true;
-  subBranchInput.setAttribute('aria-expanded', 'false');
-}
+function createBranchFilter(prefix, onChange) {
+  const input = document.getElementById(`${prefix}-branch-filter`);
+  const list = document.getElementById(`${prefix}-branch-suggestions`);
+  let query = '';
+  let branchId = null;
 
-function selectBranchFilter(b) {
-  subBranchInput.value = branchLabel(b);
-  subState.branchQuery = branchLabel(b).toLowerCase();
-  subState.branchId = b.id;
-  hideBranchSuggestions();
-  renderSubscribersTable();
-}
-
-function showBranchSuggestions() {
-  const query = subState.branchQuery;
-  subBranchSuggestions.innerHTML = '';
-  if (query.length < 2 || subState.branchId) return hideBranchSuggestions();
-  const matches = matchingBranches(query);
-  if (!matches.length) {
-    subBranchSuggestions.innerHTML = '<li class="branch-suggestion-empty">No matching branch</li>';
+  function hide() {
+    list.hidden = true;
+    input.setAttribute('aria-expanded', 'false');
   }
-  matches.forEach((b) => {
-    const li = document.createElement('li');
-    li.setAttribute('role', 'option');
-    li.textContent = branchLabel(b);
-    // mousedown fires before the input's blur hides the list.
-    li.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      selectBranchFilter(b);
+
+  function select(b) {
+    input.value = branchLabel(b);
+    query = branchLabel(b).toLowerCase();
+    branchId = b.id;
+    hide();
+    onChange();
+  }
+
+  function show() {
+    list.innerHTML = '';
+    if (query.length < 2 || branchId) return hide();
+    const matches = matchingBranches(query);
+    if (!matches.length) list.innerHTML = '<li class="branch-suggestion-empty">No matching branch</li>';
+    matches.forEach((b) => {
+      const li = document.createElement('li');
+      li.setAttribute('role', 'option');
+      li.textContent = branchLabel(b);
+      // mousedown fires before the input's blur hides the list.
+      li.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        select(b);
+      });
+      list.appendChild(li);
     });
-    subBranchSuggestions.appendChild(li);
+    list.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  }
+
+  function reset() {
+    query = '';
+    branchId = null;
+    input.value = '';
+    hide();
+  }
+
+  input.addEventListener('input', () => {
+    query = input.value.trim().toLowerCase();
+    branchId = null;
+    show();
+    onChange();
   });
-  subBranchSuggestions.hidden = false;
-  subBranchInput.setAttribute('aria-expanded', 'true');
-}
-
-subBranchInput.addEventListener('input', () => {
-  subState.branchQuery = subBranchInput.value.trim().toLowerCase();
-  subState.branchId = null;
-  showBranchSuggestions();
-  renderSubscribersTable();
-});
-subBranchInput.addEventListener('focus', showBranchSuggestions);
-subBranchInput.addEventListener('blur', hideBranchSuggestions);
-subBranchInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') hideBranchSuggestions();
-  if (e.key === 'Enter') {
-    const [first] = matchingBranches(subState.branchQuery);
-    if (first && !subState.branchId) {
-      e.preventDefault();
-      selectBranchFilter(first);
+  input.addEventListener('focus', show);
+  input.addEventListener('blur', hide);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hide();
+    if (e.key === 'Enter') {
+      const [first] = matchingBranches(query);
+      if (first && !branchId) {
+        e.preventDefault();
+        select(first);
+      }
     }
-  }
-});
+  });
 
-// The branch filter only makes sense when the sidebar shows all branches;
-// with a single branch selected it is hidden and reset.
-function syncSubBranchFilter() {
-  const showAll = selectedBranch === 'all';
-  subBranchInput.parentElement.hidden = !showAll;
-  if (!showAll) {
-    subState.branchQuery = '';
-    subState.branchId = null;
-    subBranchInput.value = '';
-    hideBranchSuggestions();
-  }
+  return {
+    reset,
+    sync() {
+      const showAll = selectedBranch === 'all';
+      input.parentElement.hidden = !showAll;
+      if (!showAll) reset();
+    },
+    matches(record) {
+      if (branchId) return record.branchId === branchId;
+      if (query.length < 2) return true;
+      return matchingBranches(query).some((b) => b.id === record.branchId);
+    },
+  };
 }
 
-function matchesBranchFilter(sub) {
-  if (subState.branchId) return sub.branchId === subState.branchId;
-  if (subState.branchQuery.length < 2) return true;
-  return matchingBranches(subState.branchQuery).some((b) => b.id === sub.branchId);
+const subBranchFilter = createBranchFilter('sub', () => renderSubscribersTable());
+const mentorBranchFilter = createBranchFilter('mentor', () => renderMentorTable());
+const deBranchFilter = createBranchFilter('de', () => renderDeTable());
+
+function syncBranchFilters() {
+  [subBranchFilter, mentorBranchFilter, deBranchFilter].forEach((f) => f.sync());
 }
 
 document.getElementById('sub-plan-filter').addEventListener('change', (e) => {
@@ -656,10 +668,7 @@ document.getElementById('sub-clear-filters-btn').addEventListener('click', () =>
   subState.mentorFilter = 'all';
   subState.deFilter = 'all';
   subState.dateType = 'all';
-  subState.branchQuery = '';
-  subState.branchId = null;
-  subBranchInput.value = '';
-  hideBranchSuggestions();
+  subBranchFilter.reset();
   document.querySelectorAll('[data-sub-status-filter]').forEach((b) => b.classList.toggle('active', b.dataset.subStatusFilter === 'all'));
   document.getElementById('sub-search-input').value = '';
   document.getElementById('sub-plan-filter').value = 'all';
@@ -706,7 +715,7 @@ function matchesSubDateFilter(sub) {
 function getFilteredSubscribers() {
   return allSubscribers.filter((sub) => {
     if (!inBranch(sub)) return false;
-    if (!matchesBranchFilter(sub)) return false;
+    if (!subBranchFilter.matches(sub)) return false;
     if (subState.statusFilter !== 'all' && sub.status !== subState.statusFilter) return false;
     if (subState.planFilter !== 'all' && sub.plan !== subState.planFilter) return false;
     if (!matchesAssignee(subState.mentorFilter, sub.mentorId)) return false;
@@ -1003,12 +1012,14 @@ document.getElementById('de-clear-filters-btn').addEventListener('click', () => 
   document.querySelectorAll('[data-de-status-filter]').forEach((b) => b.classList.toggle('active', b.dataset.deStatusFilter === 'all'));
   document.getElementById('de-search-input').value = '';
   document.getElementById('de-vehicle-filter').value = 'all';
+  deBranchFilter.reset();
   renderDeTable();
 });
 
 function getFilteredDeliveryExecs() {
   return allDeliveryExecs.filter((de) => {
     if (!inBranch(de)) return false;
+    if (!deBranchFilter.matches(de)) return false;
     const status = de.status || 'active';
     if (deState.statusFilter !== 'all' && status !== deState.statusFilter) return false;
     if (deState.vehicleFilter !== 'all' && de.vehicle !== deState.vehicleFilter) return false;
@@ -1223,12 +1234,14 @@ document.getElementById('mentor-clear-filters-btn').addEventListener('click', ()
   mentorState.search = '';
   document.querySelectorAll('[data-mentor-status-filter]').forEach((b) => b.classList.toggle('active', b.dataset.mentorStatusFilter === 'all'));
   document.getElementById('mentor-search-input').value = '';
+  mentorBranchFilter.reset();
   renderMentorTable();
 });
 
 function getFilteredMentors() {
   return allMentors.filter((m) => {
     if (!inBranch(m)) return false;
+    if (!mentorBranchFilter.matches(m)) return false;
     const status = m.status || 'active';
     if (mentorState.statusFilter !== 'all' && status !== mentorState.statusFilter) return false;
     if (mentorState.search) {
