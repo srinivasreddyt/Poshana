@@ -492,6 +492,7 @@ function renderSubStats() {
 const subState = {
   statusFilter: 'all',
   search: '',
+  subscriberId: null, // set when a subscriber is picked from the search suggestions
   planFilter: 'all',
   mentorFilter: 'all',
   deFilter: 'all',
@@ -507,9 +508,23 @@ document.querySelectorAll('[data-sub-status-filter]').forEach((btn) => {
   });
 });
 
-document.getElementById('sub-search-input').addEventListener('input', (e) => {
-  subState.search = e.target.value.trim().toLowerCase();
-  renderSubscribersTable();
+// Typing narrows the table and lists matching subscribers; picking one
+// shows just that subscriber.
+const subSearch = createTypeahead({
+  input: document.getElementById('sub-search-input'),
+  list: document.getElementById('sub-search-suggestions'),
+  suggest: (q) => suggestSubscribers(q, (s) => subBranchFilter.matches(s)),
+  emptyText: 'No matching subscriber',
+  onType: (q) => {
+    subState.search = q;
+    subState.subscriberId = null;
+    renderSubscribersTable();
+  },
+  onPick: (item) => {
+    subState.search = '';
+    subState.subscriberId = item.id;
+    renderSubscribersTable();
+  },
 });
 
 // ---------- Type-ahead ----------
@@ -578,6 +593,20 @@ function createTypeahead({ input, list, suggest, emptyText, onType, onPick }) {
       hide();
     },
   };
+}
+
+function matchesNameOrPhone(sub, query) {
+  return `${sub.name || ''} ${sub.phone || ''}`.toLowerCase().includes(query);
+}
+
+// Type-ahead items for subscribers in the sidebar's branch whose name or
+// phone matches; `extraFilter` narrows them further.
+function suggestSubscribers(query, extraFilter = () => true) {
+  return allSubscribers
+    .filter((s) => inBranch(s) && extraFilter(s) && matchesNameOrPhone(s, query))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    .slice(0, 8)
+    .map((s) => ({ id: s.id, label: s.name || 'Unnamed', meta: [s.phone, s.branchName, s.plan].filter(Boolean).join(' · ') }));
 }
 
 // ---------- Branch type-ahead filter ----------
@@ -701,13 +730,14 @@ subDateFilterType.addEventListener('change', () => {
 document.getElementById('sub-clear-filters-btn').addEventListener('click', () => {
   subState.statusFilter = 'all';
   subState.search = '';
+  subState.subscriberId = null;
   subState.planFilter = 'all';
   subState.mentorFilter = 'all';
   subState.deFilter = 'all';
   subState.dateType = 'all';
   subBranchFilter.reset();
   document.querySelectorAll('[data-sub-status-filter]').forEach((b) => b.classList.toggle('active', b.dataset.subStatusFilter === 'all'));
-  document.getElementById('sub-search-input').value = '';
+  subSearch.reset();
   document.getElementById('sub-plan-filter').value = 'all';
   document.getElementById('sub-mentor-filter').value = 'all';
   document.getElementById('sub-de-filter').value = 'all';
@@ -757,10 +787,8 @@ function getFilteredSubscribers() {
     if (subState.planFilter !== 'all' && sub.plan !== subState.planFilter) return false;
     if (!matchesAssignee(subState.mentorFilter, sub.mentorId)) return false;
     if (!matchesAssignee(subState.deFilter, sub.deliveryExecId)) return false;
-    if (subState.search) {
-      const haystack = `${sub.name || ''} ${sub.phone || ''}`.toLowerCase();
-      if (!haystack.includes(subState.search)) return false;
-    }
+    if (subState.subscriberId && sub.id !== subState.subscriberId) return false;
+    if (subState.search && !matchesNameOrPhone(sub, subState.search)) return false;
     if (!matchesSubDateFilter(sub)) return false;
     return true;
   });
@@ -1784,18 +1812,10 @@ reportPeriodType.addEventListener('change', () => {
 });
 // Typing narrows the report to matching names / phones and lists them;
 // picking one shows just that subscriber.
-function matchesNameOrPhone(sub, query) {
-  return `${sub.name || ''} ${sub.phone || ''}`.toLowerCase().includes(query);
-}
-
 createTypeahead({
   input: document.getElementById('report-search'),
   list: document.getElementById('report-search-suggestions'),
-  suggest: (q) => allSubscribers
-    .filter((s) => inBranch(s) && matchesNameOrPhone(s, q))
-    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-    .slice(0, 8)
-    .map((s) => ({ id: s.id, label: s.name || 'Unnamed', meta: [s.phone, s.branchName, s.plan].filter(Boolean).join(' · ') })),
+  suggest: (q) => suggestSubscribers(q),
   emptyText: 'No matching subscriber',
   onType: (q) => {
     reportState.search = q;

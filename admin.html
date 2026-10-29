@@ -126,7 +126,10 @@
           <button class="status-pill" data-sub-status-filter="cancelled">Cancelled</button>
         </div>
 
-        <input type="search" id="sub-search-input" placeholder="Search name or phone…">
+        <div class="typeahead">
+          <input type="search" id="sub-search-input" placeholder="Search name or phone…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="sub-search-suggestions">
+          <ul id="sub-search-suggestions" class="typeahead-suggestions" role="listbox" hidden></ul>
+        </div>
 
         <div class="typeahead">
           <input type="search" id="sub-branch-filter" placeholder="Branch (type 2 letters)…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="sub-branch-suggestions">
