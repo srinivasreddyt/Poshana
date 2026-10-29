@@ -6,6 +6,13 @@
 <title>Delivery Portal | Poshaná</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="manifest" href="delivery.webmanifest">
+<meta name="theme-color" content="#2f5233">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Poshaná Delivery">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="assets/app/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -28,6 +35,8 @@
       <button type="submit" class="btn btn-primary btn-block">Sign In</button>
     </form>
     <p id="login-error" class="admin-error"></p>
+    <button type="button" class="btn btn-outline btn-block install-btn" hidden>📲 Install app</button>
+    <p class="install-ios-hint form-note" hidden>To install: tap <strong>Share</strong> ⬆️ then <strong>Add to Home Screen</strong>.</p>
   </div>
 </div>
 
@@ -41,6 +50,7 @@
     <nav class="admin-nav">
       <button class="admin-nav-item active" type="button">🛵 Subscribers</button>
     </nav>
+    <button type="button" class="admin-logout install-btn" hidden>📲 Install app</button>
     <button id="logout-btn" class="admin-logout">Log out</button>
   </aside>
 
@@ -128,6 +138,47 @@
   </div>
 </div>
 
+<script>
+  // Installable app: register the service worker (kept out of the module so
+  // it still registers if Firebase can't load) and offer an Install button
+  // wherever the browser supports one, or the Add to Home Screen hint on iOS.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('delivery-sw.js').catch(function () {});
+    });
+  }
+  (function () {
+    var standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    var installButtons = document.querySelectorAll('.install-btn');
+    var deferredPrompt = null;
+    function showInstall(show) {
+      installButtons.forEach(function (btn) { btn.hidden = !show; });
+    }
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      deferredPrompt = e;
+      showInstall(true);
+    });
+    window.addEventListener('appinstalled', function () {
+      deferredPrompt = null;
+      showInstall(false);
+    });
+    installButtons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.finally(function () {
+          deferredPrompt = null;
+          showInstall(false);
+        });
+      });
+    });
+    var isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isIos && !standalone) {
+      document.querySelectorAll('.install-ios-hint').forEach(function (p) { p.hidden = false; });
+    }
+  })();
+</script>
 <script type="module" src="js/delivery.js"></script>
 </body>
 </html>

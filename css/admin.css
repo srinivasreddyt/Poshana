@@ -194,6 +194,10 @@
 
 .file-btn { cursor: pointer; }
 
+.install-btn { margin-top: 12px; }
+.admin-sidebar .install-btn { margin-bottom: 8px; }
+.install-ios-hint { margin-top: 12px; text-align: center; }
+
 .report-range {
   display: inline-flex;
   align-items: center;

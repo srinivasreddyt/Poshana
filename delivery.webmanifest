@@ -1,0 +1,17 @@
+{
+  "id": "./delivery.html",
+  "name": "Poshaná Delivery",
+  "short_name": "Poshaná Delivery",
+  "description": "Poshaná delivery executive portal: today's subscribers and meal deliveries.",
+  "start_url": "./delivery.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f2e7",
+  "theme_color": "#2f5233",
+  "icons": [
+    { "src": "assets/app/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/app/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/app/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
