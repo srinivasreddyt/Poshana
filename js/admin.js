@@ -25,7 +25,7 @@ const {
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword,
 } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
 const {
-  getFirestore, collection, query, where, orderBy, onSnapshot, doc, updateDoc, addDoc, setDoc, getDocs, serverTimestamp,
+  getFirestore, collection, query, where, orderBy, onSnapshot, doc, updateDoc, addDoc, setDoc, deleteDoc, getDocs, serverTimestamp,
 } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
 
 const app = initializeApp(firebaseConfig);
@@ -1353,11 +1353,17 @@ function renderLogin(prefix, record) {
   }
   section.hidden = false;
 
-  if (record.loginUid) {
+  const loginBtn = document.getElementById(`${prefix}-login-btn`);
+  if (record.loginUid && normalizePhone(record.phone) !== record.loginPhone) {
+    info.textContent = `The login still uses the old phone ${record.loginPhone}. Set a new PIN to move it to ${normalizePhone(record.phone)} — the old number will stop working.`;
+    loginBtn.textContent = 'Move Login';
+    createBox.hidden = false;
+  } else if (record.loginUid) {
     info.textContent = `Login active — ${who} signs in at ${page} with phone ${record.loginPhone} and their PIN.`;
     createBox.hidden = true;
   } else {
     info.textContent = `No login yet. Set a PIN to let this ${who} sign in with their phone number.`;
+    loginBtn.textContent = 'Create Login';
     createBox.hidden = false;
   }
 }
@@ -1402,6 +1408,9 @@ Object.entries(loginKinds).forEach(([prefix, kind]) => {
       const uid = cred.user.uid;
       await signOut(tempAuth);
       await setDoc(doc(db, kind.loginsCollection, uid), { [kind.idField]: record.id, phone, createdAt: serverTimestamp() });
+      // Moving to a new phone: the old auth account can't be deleted from the
+      // browser, but without its login doc it can no longer see anything.
+      if (record.loginUid && record.loginUid !== uid) await deleteDoc(doc(db, kind.loginsCollection, record.loginUid));
       await updateDoc(doc(db, kind.collection, record.id), { loginUid: uid, loginPhone: phone, updatedAt: serverTimestamp() });
       status.textContent = 'Login created.';
     } catch (err) {
