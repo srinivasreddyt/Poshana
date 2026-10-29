@@ -310,11 +310,20 @@
       </div>
 
       <div class="admin-filters">
-        <label class="report-range">From <input type="date" id="report-from"></label>
-        <label class="report-range">To <input type="date" id="report-to"></label>
-        <button type="button" class="btn-clear-filters" data-report-range="this-month">This month</button>
-        <button type="button" class="btn-clear-filters" data-report-range="last-month">Last month</button>
-        <button type="button" class="btn-clear-filters" data-report-range="last-7">Last 7 days</button>
+        <select id="report-period-type" aria-label="Report period">
+          <option value="all">All time</option>
+          <option value="day">Specific day</option>
+          <option value="month" selected>Specific month</option>
+          <option value="year">Specific year</option>
+          <option value="range">Custom range</option>
+        </select>
+        <input type="date" id="report-day" aria-label="Day" hidden>
+        <input type="month" id="report-month" aria-label="Month">
+        <input type="number" id="report-year" placeholder="e.g. 2026" min="2020" max="2100" aria-label="Year" hidden>
+        <span id="report-range-inputs" class="report-range" hidden>
+          <label class="report-range">From <input type="date" id="report-from"></label>
+          <label class="report-range">To <input type="date" id="report-to"></label>
+        </span>
         <input type="search" id="report-search" placeholder="Search name or phone…">
         <select id="report-exec-filter" aria-label="Delivery executive"></select>
         <div class="admin-filter-spacer"></div>

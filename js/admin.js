@@ -113,6 +113,7 @@ onAuthStateChanged(auth, (user) => {
     }
     allBranches = [];
     stopReportListener();
+    reportTabOpened = false;
   }
 });
 
@@ -1666,39 +1667,90 @@ function formatMealTime(ts) {
   return d ? d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
 }
 
+// The period is picked like the other tabs' date filters (all time / day /
+// month / year), plus a custom from–to range; it resolves to [from, to].
 const reportState = { from: '', to: '', search: '', execFilter: 'all' };
 let reportDeliveries = []; // delivery docs in [from, to]
 let unsubscribeReportSnapshot = null;
 let reportListenedRange = '';
+let reportTabOpened = false; // deliveries are only loaded once the tab is used
 
+const reportPeriodType = document.getElementById('report-period-type');
+const reportDayInput = document.getElementById('report-day');
+const reportMonthInput = document.getElementById('report-month');
+const reportYearInput = document.getElementById('report-year');
+const reportRangeInputs = document.getElementById('report-range-inputs');
 const reportFromInput = document.getElementById('report-from');
 const reportToInput = document.getElementById('report-to');
 
-function setReportRange(from, to) {
-  reportState.from = from;
-  reportState.to = to;
-  reportFromInput.value = from;
-  reportToInput.value = to;
-  if (unsubscribeReportSnapshot) ensureReportListener();
+// "All time" spans every delivery that could have been recorded; due meals
+// are still only counted up to today.
+const REPORT_EPOCH = '2020-01-01';
+const REPORT_END = '2100-12-31';
+
+function resolveReportPeriod() {
+  const today = toDateInputValue(new Date());
+  switch (reportPeriodType.value) {
+    case 'all':
+      return [REPORT_EPOCH, REPORT_END];
+    case 'day':
+      return [reportDayInput.value, reportDayInput.value];
+    case 'month': {
+      if (!reportMonthInput.value) return ['', ''];
+      const [y, m] = reportMonthInput.value.split('-').map(Number);
+      return [toDateInputValue(new Date(y, m - 1, 1)), toDateInputValue(new Date(y, m, 0))];
+    }
+    case 'year': {
+      const y = Number(reportYearInput.value);
+      return y >= 2000 && y <= 2100 ? [`${y}-01-01`, `${y}-12-31`] : ['', ''];
+    }
+    default:
+      return [reportFromInput.value, reportToInput.value];
+  }
+}
+
+function reportPeriodLabel() {
+  const { from, to } = reportState;
+  const type = reportPeriodType.value;
+  if (type === 'all') return 'All time';
+  if (type === 'month' && from) return parseDateInput(from).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  if (type === 'year' && from) return from.slice(0, 4);
+  if (from && from === to) return formatShortDate(parseDateInput(from));
+  return from && to ? `${formatShortDate(parseDateInput(from))} – ${formatShortDate(parseDateInput(to))}` : '—';
+}
+
+function applyReportPeriod() {
+  [reportState.from, reportState.to] = resolveReportPeriod();
+  if (reportTabOpened) ensureReportListener();
   renderReport();
 }
 
-function rangePreset(name) {
-  const now = new Date();
-  const today = toDateInputValue(now);
-  if (name === 'last-7') return [addDays(today, -6), today];
-  if (name === 'last-month') {
-    return [toDateInputValue(new Date(now.getFullYear(), now.getMonth() - 1, 1)), toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 0))];
+// Shows the input for the chosen period type, defaulting it to the current
+// day / month / year (the same behaviour as the other date filters).
+function syncReportPeriodInputs() {
+  const type = reportPeriodType.value;
+  reportDayInput.hidden = type !== 'day';
+  reportMonthInput.hidden = type !== 'month';
+  reportYearInput.hidden = type !== 'year';
+  reportRangeInputs.hidden = type !== 'range';
+
+  const { y, m, d } = todayParts();
+  if (type === 'day' && !reportDayInput.value) reportDayInput.value = `${y}-${m}-${d}`;
+  if (type === 'month' && !reportMonthInput.value) reportMonthInput.value = `${y}-${m}`;
+  if (type === 'year' && !reportYearInput.value) reportYearInput.value = `${y}`;
+  if (type === 'range') {
+    if (!reportFromInput.value) reportFromInput.value = `${y}-${m}-01`;
+    if (!reportToInput.value) reportToInput.value = `${y}-${m}-${d}`;
   }
-  return [toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1)), today];
 }
 
-document.querySelectorAll('[data-report-range]').forEach((btn) => {
-  btn.addEventListener('click', () => setReportRange(...rangePreset(btn.dataset.reportRange)));
+reportPeriodType.addEventListener('change', () => {
+  syncReportPeriodInputs();
+  applyReportPeriod();
 });
-[reportFromInput, reportToInput].forEach((input) => input.addEventListener('change', () => {
-  setReportRange(reportFromInput.value, reportToInput.value);
-}));
+[reportDayInput, reportMonthInput, reportYearInput, reportFromInput, reportToInput].forEach((input) => {
+  input.addEventListener('input', applyReportPeriod);
+});
 document.getElementById('report-search').addEventListener('input', (e) => {
   reportState.search = e.target.value.trim().toLowerCase();
   renderReport();
@@ -1708,13 +1760,13 @@ document.getElementById('report-exec-filter').addEventListener('change', (e) => 
   renderReport();
 });
 
-[reportState.from, reportState.to] = rangePreset('this-month');
-reportFromInput.value = reportState.from;
-reportToInput.value = reportState.to;
+syncReportPeriodInputs();
+[reportState.from, reportState.to] = resolveReportPeriod();
 
 // Listens to the deliveries of the selected range; started the first time
 // the Reports tab is opened, and re-pointed when the range changes.
 function ensureReportListener() {
+  reportTabOpened = true;
   const { from, to } = reportState;
   const key = `${from}|${to}`;
   if (unsubscribeReportSnapshot && reportListenedRange === key) return;
@@ -1933,7 +1985,7 @@ function renderReportDrawer() {
 
   document.getElementById('report-drawer-title').textContent = sub.name || 'Unnamed';
   document.getElementById('report-drawer-period').textContent =
-    `${formatShortDate(parseDateInput(reportState.from))} – ${formatShortDate(parseDateInput(reportState.to))} · ${sub.plan || '—'} · ${sub.deliveryExecName || 'No executive'}`;
+    `${reportPeriodLabel()} · ${sub.plan || '—'} · ${sub.deliveryExecName || 'No executive'}`;
   document.getElementById('report-drawer-summary').innerHTML = [
     ['Delivered', `${row.delivered} / ${row.expected}`],
     ['Missed', row.missed],
