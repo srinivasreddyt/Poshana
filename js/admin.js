@@ -47,6 +47,10 @@ let allDeliveryExecs = [];
 let unsubscribeDeSnapshot = null;
 let allMentors = [];
 let unsubscribeMentorSnapshot = null;
+let allBranches = [];
+let unsubscribeBranchSnapshot = null;
+let selectedBranch = 'all';
+try { selectedBranch = localStorage.getItem('poshana-admin-branch') || 'all'; } catch (e) { /* storage unavailable */ }
 
 // ---------- Auth ----------
 pinForm.addEventListener('submit', async (e) => {
@@ -78,6 +82,7 @@ onAuthStateChanged(auth, (user) => {
     startListeningSubscribers();
     startListeningDeliveryExecs();
     startListeningMentors();
+    startListeningBranches();
   } else {
     adminApp.hidden = true;
     loginScreen.hidden = false;
@@ -102,6 +107,11 @@ onAuthStateChanged(auth, (user) => {
     allSubscribers = [];
     allDeliveryExecs = [];
     allMentors = [];
+    if (unsubscribeBranchSnapshot) {
+      unsubscribeBranchSnapshot();
+      unsubscribeBranchSnapshot = null;
+    }
+    allBranches = [];
   }
 });
 
@@ -259,6 +269,91 @@ function renderTable() {
   });
 }
 
+// ---------- Branches ----------
+function startListeningBranches() {
+  unsubscribeBranchSnapshot = onSnapshot(collection(db, 'branches'), (snapshot) => {
+    allBranches = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => branchLabel(a).localeCompare(branchLabel(b)));
+    populateBranchSwitcher();
+    rerenderBranchScoped();
+  });
+}
+
+function branchLabel(b) {
+  return b.city || 'Unnamed branch';
+}
+
+function inBranch(record) {
+  return selectedBranch === 'all' || record.branchId === selectedBranch;
+}
+
+function populateBranchSwitcher() {
+  const select = document.getElementById('branch-switcher');
+  select.innerHTML = '<option value="all">All branches</option>';
+  allBranches.forEach((b) => {
+    const opt = document.createElement('option');
+    opt.value = b.id;
+    opt.textContent = branchLabel(b);
+    select.appendChild(opt);
+  });
+  if (selectedBranch !== 'all' && !allBranches.some((b) => b.id === selectedBranch)) selectedBranch = 'all';
+  select.value = selectedBranch;
+}
+
+document.getElementById('branch-switcher').addEventListener('change', (e) => {
+  selectedBranch = e.target.value;
+  try { localStorage.setItem('poshana-admin-branch', selectedBranch); } catch (err) { /* storage unavailable */ }
+  rerenderBranchScoped();
+});
+
+function rerenderBranchScoped() {
+  refreshAssigneeFilters();
+  renderSubStats();
+  renderSubscribersTable();
+  renderMentorStats();
+  renderMentorTable();
+  renderDeStats();
+  renderDeTable();
+}
+
+function refreshAssigneeFilters() {
+  populateAssigneeFilter('sub-mentor-filter', allMentors.filter(inBranch), 'mentorFilter', 'All Mentors', 'No Mentor');
+  populateAssigneeFilter('sub-de-filter', allDeliveryExecs.filter(inBranch), 'deFilter', 'All Executives', 'Unassigned');
+}
+
+// New records default to the branch currently selected in the sidebar.
+function populateBranchSelect(selectId, currentId) {
+  const select = document.getElementById(selectId);
+  select.innerHTML = '';
+  allBranches.forEach((b) => {
+    const opt = document.createElement('option');
+    opt.value = b.id;
+    opt.textContent = branchLabel(b);
+    select.appendChild(opt);
+  });
+  select.value = currentId || (selectedBranch !== 'all' ? selectedBranch : allBranches[0]?.id || '');
+}
+
+function readBranch(selectId) {
+  const select = document.getElementById(selectId);
+  const branch = allBranches.find((b) => b.id === select.value);
+  return { branchId: branch ? branch.id : null, branchName: branch ? branchLabel(branch) : null };
+}
+
+// Mentor / delivery exec options for the subscriber form: people in the
+// subscriber's branch (or with no branch yet). When opening an existing
+// subscriber, keepCurrent also keeps their current assignee listed.
+function populateSubAssignees(mentorId, deId, keepCurrent) {
+  const branchId = document.getElementById('sub-branch').value;
+  const allowed = (p, currentId) => !p.branchId || p.branchId === branchId || (keepCurrent && p.id === currentId);
+  populateAssigneeSelect('sub-mentor', allMentors.filter((p) => allowed(p, mentorId)), mentorId, 'specialization');
+  populateAssigneeSelect('sub-delivery-exec', allDeliveryExecs.filter((p) => allowed(p, deId)), deId, 'area');
+}
+
+document.getElementById('sub-branch').addEventListener('change', () => {
+  populateSubAssignees(document.getElementById('sub-mentor').value, document.getElementById('sub-delivery-exec').value, false);
+});
+
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
@@ -374,11 +469,12 @@ function startListeningSubscribers() {
 }
 
 function renderSubStats() {
-  document.getElementById('sub-stat-total').textContent = allSubscribers.length;
-  document.getElementById('sub-stat-active').textContent = allSubscribers.filter((s) => s.status === 'active').length;
-  document.getElementById('sub-stat-essential').textContent = allSubscribers.filter((s) => s.plan === 'Essential').length;
-  document.getElementById('sub-stat-balanced').textContent = allSubscribers.filter((s) => s.plan === 'Balanced').length;
-  document.getElementById('sub-stat-complete').textContent = allSubscribers.filter((s) => s.plan === 'Complete Wellness').length;
+  const subs = allSubscribers.filter(inBranch);
+  document.getElementById('sub-stat-total').textContent = subs.length;
+  document.getElementById('sub-stat-active').textContent = subs.filter((s) => s.status === 'active').length;
+  document.getElementById('sub-stat-essential').textContent = subs.filter((s) => s.plan === 'Essential').length;
+  document.getElementById('sub-stat-balanced').textContent = subs.filter((s) => s.plan === 'Balanced').length;
+  document.getElementById('sub-stat-complete').textContent = subs.filter((s) => s.plan === 'Complete Wellness').length;
 }
 
 // ---------- Subscriber filters ----------
@@ -515,6 +611,7 @@ function matchesSubDateFilter(sub) {
 
 function getFilteredSubscribers() {
   return allSubscribers.filter((sub) => {
+    if (!inBranch(sub)) return false;
     if (subState.statusFilter !== 'all' && sub.status !== subState.statusFilter) return false;
     if (subState.planFilter !== 'all' && sub.plan !== subState.planFilter) return false;
     if (!matchesAssignee(subState.mentorFilter, sub.mentorId)) return false;
@@ -557,6 +654,7 @@ function renderSubscribersTable() {
     tr.innerHTML = `
       <td class="cell-name">${escapeHtml(sub.name || '—')}</td>
       <td>${escapeHtml(sub.phone || '—')}</td>
+      <td>${escapeHtml(sub.branchName || '—')}</td>
       <td>${escapeHtml(sub.plan || '—')}</td>
       <td>${formatShortDate(sub.startDate)}</td>
       <td>${formatShortDate(sub.endDate)}</td>
@@ -628,6 +726,7 @@ function openSubscriberDrawer(id) {
   const sub = id ? allSubscribers.find((s) => s.id === id) : null;
 
   document.getElementById('sub-drawer-title').textContent = sub ? 'Edit Subscriber' : 'Add Subscriber';
+  populateBranchSelect('sub-branch', sub?.branchId);
   document.getElementById('sub-name').value = sub?.name || '';
   document.getElementById('sub-phone').value = sub?.phone || '';
   document.getElementById('sub-email').value = sub?.email || '';
@@ -637,8 +736,7 @@ function openSubscriberDrawer(id) {
   document.getElementById('sub-duration').value = sub?.durationMonths || '1';
   document.getElementById('sub-amount').value = sub?.amount ?? '';
   document.getElementById('sub-status').value = sub?.status || 'active';
-  populateAssigneeSelect('sub-mentor', allMentors, sub?.mentorId, 'specialization');
-  populateAssigneeSelect('sub-delivery-exec', allDeliveryExecs, sub?.deliveryExecId, 'area');
+  populateSubAssignees(sub?.mentorId, sub?.deliveryExecId, true);
   document.getElementById('sub-notes').value = sub?.notes || '';
   document.getElementById('sub-save-status').textContent = '';
   updateComputedEndPreview();
@@ -719,6 +817,7 @@ subForm.addEventListener('submit', async (e) => {
   const data = {
     name,
     phone,
+    ...readBranch('sub-branch'),
     email: document.getElementById('sub-email').value.trim(),
     plan: document.getElementById('sub-plan').value,
     address: document.getElementById('sub-address').value.trim(),
@@ -762,7 +861,7 @@ function startListeningDeliveryExecs() {
     loadingState.hidden = true;
     renderDeStats();
     renderDeTable();
-    populateAssigneeFilter('sub-de-filter', allDeliveryExecs, 'deFilter', 'All Executives', 'Unassigned');
+    refreshAssigneeFilters();
     renderSubscribersTable();
   }, (err) => {
     loadingState.textContent = 'Could not load delivery executives: ' + err.message;
@@ -770,8 +869,9 @@ function startListeningDeliveryExecs() {
 }
 
 function renderDeStats() {
-  document.getElementById('de-stat-total').textContent = allDeliveryExecs.length;
-  document.getElementById('de-stat-active').textContent = allDeliveryExecs.filter((d) => d.status !== 'inactive').length;
+  const execs = allDeliveryExecs.filter(inBranch);
+  document.getElementById('de-stat-total').textContent = execs.length;
+  document.getElementById('de-stat-active').textContent = execs.filter((d) => d.status !== 'inactive').length;
 }
 
 // ---------- Delivery executive filters ----------
@@ -812,6 +912,7 @@ document.getElementById('de-clear-filters-btn').addEventListener('click', () => 
 
 function getFilteredDeliveryExecs() {
   return allDeliveryExecs.filter((de) => {
+    if (!inBranch(de)) return false;
     const status = de.status || 'active';
     if (deState.statusFilter !== 'all' && status !== deState.statusFilter) return false;
     if (deState.vehicleFilter !== 'all' && de.vehicle !== deState.vehicleFilter) return false;
@@ -843,6 +944,7 @@ function renderDeTable() {
     tr.innerHTML = `
       <td class="cell-name">${escapeHtml(de.name || '—')}</td>
       <td>${escapeHtml(de.phone || '—')}</td>
+      <td>${escapeHtml(de.branchName || '—')}</td>
       <td>${escapeHtml(de.area || '—')}</td>
       <td>${escapeHtml(de.vehicle || '—')}</td>
       <td>${subCount}</td>
@@ -863,6 +965,7 @@ function openDeDrawer(id) {
   const de = id ? allDeliveryExecs.find((d) => d.id === id) : null;
 
   document.getElementById('de-drawer-title').textContent = de ? 'Edit Delivery Executive' : 'Add Delivery Executive';
+  populateBranchSelect('de-branch', de?.branchId);
   document.getElementById('de-name').value = de?.name || '';
   document.getElementById('de-phone').value = de?.phone || '';
   document.getElementById('de-email').value = de?.email || '';
@@ -948,6 +1051,7 @@ deForm.addEventListener('submit', async (e) => {
   const data = {
     name,
     phone,
+    ...readBranch('de-branch'),
     email: document.getElementById('de-email').value.trim(),
     area: document.getElementById('de-area').value.trim(),
     vehicle: document.getElementById('de-vehicle').value,
@@ -983,7 +1087,7 @@ function startListeningMentors() {
     loadingState.hidden = true;
     renderMentorStats();
     renderMentorTable();
-    populateAssigneeFilter('sub-mentor-filter', allMentors, 'mentorFilter', 'All Mentors', 'No Mentor');
+    refreshAssigneeFilters();
     renderSubscribersTable();
     if (activeMentorId && !mentorDrawer.hidden) renderMentorLogin(allMentors.find((x) => x.id === activeMentorId));
   }, (err) => {
@@ -992,8 +1096,9 @@ function startListeningMentors() {
 }
 
 function renderMentorStats() {
-  document.getElementById('mentor-stat-total').textContent = allMentors.length;
-  document.getElementById('mentor-stat-active').textContent = allMentors.filter((m) => m.status !== 'inactive').length;
+  const mentors = allMentors.filter(inBranch);
+  document.getElementById('mentor-stat-total').textContent = mentors.length;
+  document.getElementById('mentor-stat-active').textContent = mentors.filter((m) => m.status !== 'inactive').length;
 }
 
 // ---------- Mentor filters ----------
@@ -1026,6 +1131,7 @@ document.getElementById('mentor-clear-filters-btn').addEventListener('click', ()
 
 function getFilteredMentors() {
   return allMentors.filter((m) => {
+    if (!inBranch(m)) return false;
     const status = m.status || 'active';
     if (mentorState.statusFilter !== 'all' && status !== mentorState.statusFilter) return false;
     if (mentorState.search) {
@@ -1053,6 +1159,7 @@ function renderMentorTable() {
     tr.innerHTML = `
       <td class="cell-name">${escapeHtml(m.name || '—')}</td>
       <td>${escapeHtml(m.phone || '—')}</td>
+      <td>${escapeHtml(m.branchName || '—')}</td>
       <td>${escapeHtml(m.specialization || '—')}</td>
       <td>${experience}</td>
       <td>${subCount}</td>
@@ -1073,6 +1180,7 @@ function openMentorDrawer(id) {
   const m = id ? allMentors.find((x) => x.id === id) : null;
 
   document.getElementById('mentor-drawer-title').textContent = m ? 'Edit Mentor' : 'Add Mentor';
+  populateBranchSelect('mentor-branch', m?.branchId);
   document.getElementById('mentor-name').value = m?.name || '';
   document.getElementById('mentor-phone').value = m?.phone || '';
   document.getElementById('mentor-email').value = m?.email || '';
@@ -1194,6 +1302,7 @@ mentorForm.addEventListener('submit', async (e) => {
   const data = {
     name,
     phone,
+    ...readBranch('mentor-branch'),
     email: document.getElementById('mentor-email').value.trim(),
     specialization: document.getElementById('mentor-specialization').value.trim(),
     experience: experienceVal === '' ? null : Number(experienceVal),

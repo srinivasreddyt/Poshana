@@ -35,6 +35,12 @@
       <span class="brand-mark"><img src="assets/logo-icon.png" alt="Poshaná logo"></span>
       <span class="brand-text">Poshaná<small>Admin Panel</small></span>
     </a>
+    <label class="branch-switcher">
+      <span>Branch</span>
+      <select id="branch-switcher">
+        <option value="all">All branches</option>
+      </select>
+    </label>
     <nav class="admin-nav">
       <button class="admin-nav-item active" data-tab="enquiries">📋 Enquiries</button>
       <button class="admin-nav-item" data-tab="subscribers">👥 Subscribers</button>
@@ -158,6 +164,7 @@
             <tr>
               <th>Name</th>
               <th>Phone</th>
+              <th>Branch</th>
               <th>Plan</th>
               <th>Start</th>
               <th>End</th>
@@ -204,6 +211,7 @@
             <tr>
               <th>Name</th>
               <th>Phone</th>
+              <th>Branch</th>
               <th>Specialization</th>
               <th>Experience</th>
               <th>Subscribers</th>
@@ -255,6 +263,7 @@
             <tr>
               <th>Name</th>
               <th>Phone</th>
+              <th>Branch</th>
               <th>Area</th>
               <th>Vehicle</th>
               <th>Subscribers</th>
@@ -310,6 +319,10 @@
     <h2 id="sub-drawer-title">Add Subscriber</h2>
 
     <form id="subscriber-form">
+      <div class="field">
+        <label for="sub-branch">Branch</label>
+        <select id="sub-branch" class="branch-select" required></select>
+      </div>
       <div class="field">
         <label for="sub-name">Full Name</label>
         <input type="text" id="sub-name" required>
@@ -406,6 +419,10 @@
 
     <form id="mentor-form">
       <div class="field">
+        <label for="mentor-branch">Branch</label>
+        <select id="mentor-branch" class="branch-select" required></select>
+      </div>
+      <div class="field">
         <label for="mentor-name">Full Name</label>
         <input type="text" id="mentor-name" required>
       </div>
@@ -482,6 +499,10 @@
     <h2 id="de-drawer-title">Add Delivery Executive</h2>
 
     <form id="de-form">
+      <div class="field">
+        <label for="de-branch">Branch</label>
+        <select id="de-branch" class="branch-select" required></select>
+      </div>
       <div class="field">
         <label for="de-name">Full Name</label>
         <input type="text" id="de-name" required>

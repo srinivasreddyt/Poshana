@@ -292,6 +292,7 @@ function renderClientDrawer() {
   callBtn.textContent = `📞 Call ${c.name || ''}`.trim();
   document.getElementById('client-phone').textContent = c.phone || '—';
   document.getElementById('client-email').textContent = c.email || '—';
+  document.getElementById('client-branch').textContent = c.branchName || '—';
   document.getElementById('client-plan').textContent = c.plan || '—';
   document.getElementById('client-dates').textContent = `${formatShortDate(c.startDate)} – ${formatShortDate(c.endDate)}`;
   document.getElementById('client-address').textContent = c.address || '—';
