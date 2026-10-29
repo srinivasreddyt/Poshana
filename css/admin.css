@@ -192,6 +192,36 @@
 }
 .admin-filters input[type="search"] { min-width: 180px; }
 
+.report-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+.report-missed { color: #b4432f; font-weight: 600; }
+.report-done { color: var(--green-800); }
+.report-done small { color: var(--text-muted); }
+.report-off { color: var(--text-muted); }
+.report-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 16px 0;
+}
+.report-summary div {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+.report-summary strong { display: block; font-size: 1.15rem; color: var(--green-900); }
+.report-summary span { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.report-days-wrap { margin-top: 16px; }
+.admin-table.report-days { min-width: 0; }
+.admin-table.report-days td, .admin-table.report-days th { padding: 10px 8px; font-size: 0.82rem; white-space: normal; }
+.admin-table.report-days th { font-size: 0.68rem; }
+
 .date-nav { display: flex; align-items: center; gap: 6px; }
 .date-nav-btn {
   width: 38px;

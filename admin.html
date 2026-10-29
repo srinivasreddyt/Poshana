@@ -46,6 +46,7 @@
       <button class="admin-nav-item" data-tab="subscribers">👥 Subscribers</button>
       <button class="admin-nav-item" data-tab="mentors">🧑‍⚕️ Mentors</button>
       <button class="admin-nav-item" data-tab="delivery">🛵 Delivery Executives</button>
+      <button class="admin-nav-item" data-tab="reports">📦 Delivery Reports</button>
       <button class="admin-nav-item" data-tab="branches">🏢 Branches</button>
     </nav>
     <button id="logout-btn" class="admin-logout">Log out</button>
@@ -292,6 +293,58 @@
         <p id="de-empty-state" class="admin-empty" hidden>No delivery executives match these filters.</p>
       </div>
     </section>
+
+    <section id="tab-reports" hidden>
+      <div class="admin-topbar">
+        <div>
+          <h1>Delivery Reports</h1>
+          <p class="form-note mt-0">Meals ticked by delivery executives. Expected meals count breakfast, lunch and dinner for every Monday–Saturday inside each subscription, up to today.</p>
+        </div>
+        <div class="admin-stats">
+          <div class="admin-stat"><strong id="report-stat-subs">0</strong><span>Subscribers</span></div>
+          <div class="admin-stat"><strong id="report-stat-delivered">0</strong><span>Delivered</span></div>
+          <div class="admin-stat"><strong id="report-stat-expected">0</strong><span>Expected</span></div>
+          <div class="admin-stat"><strong id="report-stat-missed">0</strong><span>Missed</span></div>
+          <div class="admin-stat"><strong id="report-stat-rate">—</strong><span>Delivery rate</span></div>
+        </div>
+      </div>
+
+      <div class="admin-filters">
+        <label class="report-range">From <input type="date" id="report-from"></label>
+        <label class="report-range">To <input type="date" id="report-to"></label>
+        <button type="button" class="btn-clear-filters" data-report-range="this-month">This month</button>
+        <button type="button" class="btn-clear-filters" data-report-range="last-month">Last month</button>
+        <button type="button" class="btn-clear-filters" data-report-range="last-7">Last 7 days</button>
+        <input type="search" id="report-search" placeholder="Search name or phone…">
+        <select id="report-exec-filter" aria-label="Delivery executive"></select>
+        <div class="admin-filter-spacer"></div>
+        <button type="button" id="report-csv-btn" class="btn btn-outline">⬇ Download CSV</button>
+      </div>
+
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Branch</th>
+              <th>Plan</th>
+              <th>Executive</th>
+              <th>Days due</th>
+              <th>Breakfast</th>
+              <th>Lunch</th>
+              <th>Dinner</th>
+              <th>Delivered</th>
+              <th>Missed</th>
+              <th>Last delivery</th>
+            </tr>
+          </thead>
+          <tbody id="report-tbody"></tbody>
+        </table>
+        <p id="report-loading-state" class="admin-loading" hidden>Loading deliveries…</p>
+        <p id="report-empty-state" class="admin-empty" hidden>No deliveries due or made in this period.</p>
+      </div>
+    </section>
+
     <section id="tab-branches" hidden>
       <div class="admin-topbar">
         <div>
@@ -674,6 +727,29 @@
     <div id="de-assigned-section" class="assigned-section" hidden>
       <span class="drawer-section-label">Assigned Subscribers (<span id="de-assigned-count">0</span>)</span>
       <div id="de-assigned-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Delivery report drawer (one subscriber, day by day) -->
+<div id="report-drawer" class="admin-drawer" hidden>
+  <div class="admin-drawer-backdrop" id="report-drawer-backdrop"></div>
+  <div class="admin-drawer-panel">
+    <button class="admin-drawer-close" id="report-drawer-close">&times;</button>
+    <h2 id="report-drawer-title">—</h2>
+    <p id="report-drawer-period" class="form-note mt-0"></p>
+    <div id="report-drawer-summary" class="report-summary"></div>
+    <div class="drawer-save-row">
+      <button type="button" id="report-drawer-csv-btn" class="btn btn-outline btn-sm">⬇ Download CSV</button>
+      <button type="button" id="report-drawer-open-sub" class="btn-clear-filters">Open subscriber</button>
+    </div>
+    <div class="admin-table-wrap report-days-wrap">
+      <table class="admin-table report-days">
+        <thead>
+          <tr><th>Date</th><th>Breakfast</th><th>Lunch</th><th>Dinner</th></tr>
+        </thead>
+        <tbody id="report-days-tbody"></tbody>
+      </table>
     </div>
   </div>
 </div>

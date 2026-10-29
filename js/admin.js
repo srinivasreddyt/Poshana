@@ -112,6 +112,7 @@ onAuthStateChanged(auth, (user) => {
       unsubscribeBranchSnapshot = null;
     }
     allBranches = [];
+    stopReportListener();
   }
 });
 
@@ -125,6 +126,8 @@ document.querySelectorAll('.admin-nav-item').forEach((btn) => {
     document.getElementById('tab-mentors').hidden = tab !== 'mentors';
     document.getElementById('tab-delivery').hidden = tab !== 'delivery';
     document.getElementById('tab-branches').hidden = tab !== 'branches';
+    document.getElementById('tab-reports').hidden = tab !== 'reports';
+    if (tab === 'reports') ensureReportListener();
   });
 });
 
@@ -317,6 +320,7 @@ function rerenderBranchScoped() {
   renderDeStats();
   renderDeTable();
   renderBranchTable();
+  renderReport();
 }
 
 function refreshAssigneeFilters() {
@@ -466,6 +470,7 @@ function startListeningSubscribers() {
     renderDeTable();
     renderMentorTable();
     renderBranchTable();
+    renderReport();
     if (activeDeId && !deDrawer.hidden) renderAssignedList('de', 'deliveryExecId', activeDeId, closeDeDrawer);
     if (activeMentorId && !mentorDrawer.hidden) renderAssignedList('mentor', 'mentorId', activeMentorId, closeMentorDrawer);
   }, (err) => {
@@ -969,6 +974,7 @@ function startListeningDeliveryExecs() {
     renderBranchTable();
     refreshAssigneeFilters();
     renderSubscribersTable();
+    renderReport();
     if (activeDeId && !deDrawer.hidden) renderLogin('de', allDeliveryExecs.find((x) => x.id === activeDeId));
   }, (err) => {
     loadingState.textContent = 'Could not load delivery executives: ' + err.message;
@@ -1622,4 +1628,359 @@ branchForm.addEventListener('submit', async (e) => {
   } finally {
     saveBtn.disabled = false;
   }
+});
+
+// ============================================
+// Delivery reports
+// ============================================
+// Delivery executives tick meals in delivery.html, stored as
+// deliveries/{subscriberId}_{YYYY-MM-DD} with breakfast / lunch / dinner
+// fields set to { by, byName, at } (or null). A meal is "due" on every
+// Monday–Saturday inside the subscription window, up to today.
+const MEALS = [['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner']];
+
+function parseDateInput(value) {
+  const [y, m, d] = value.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function addDays(value, n) {
+  const d = parseDateInput(value);
+  d.setDate(d.getDate() + n);
+  return toDateInputValue(d);
+}
+
+function isSundayValue(value) {
+  return parseDateInput(value).getDay() === 0;
+}
+
+// Every 'YYYY-MM-DD' from `from` to `to`, inclusive.
+function datesBetween(from, to) {
+  const out = [];
+  for (let d = from; d <= to; d = addDays(d, 1)) out.push(d);
+  return out;
+}
+
+function formatMealTime(ts) {
+  const d = toDate(ts);
+  return d ? d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+}
+
+const reportState = { from: '', to: '', search: '', execFilter: 'all' };
+let reportDeliveries = []; // delivery docs in [from, to]
+let unsubscribeReportSnapshot = null;
+let reportListenedRange = '';
+
+const reportFromInput = document.getElementById('report-from');
+const reportToInput = document.getElementById('report-to');
+
+function setReportRange(from, to) {
+  reportState.from = from;
+  reportState.to = to;
+  reportFromInput.value = from;
+  reportToInput.value = to;
+  if (unsubscribeReportSnapshot) ensureReportListener();
+  renderReport();
+}
+
+function rangePreset(name) {
+  const now = new Date();
+  const today = toDateInputValue(now);
+  if (name === 'last-7') return [addDays(today, -6), today];
+  if (name === 'last-month') {
+    return [toDateInputValue(new Date(now.getFullYear(), now.getMonth() - 1, 1)), toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 0))];
+  }
+  return [toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1)), today];
+}
+
+document.querySelectorAll('[data-report-range]').forEach((btn) => {
+  btn.addEventListener('click', () => setReportRange(...rangePreset(btn.dataset.reportRange)));
+});
+[reportFromInput, reportToInput].forEach((input) => input.addEventListener('change', () => {
+  setReportRange(reportFromInput.value, reportToInput.value);
+}));
+document.getElementById('report-search').addEventListener('input', (e) => {
+  reportState.search = e.target.value.trim().toLowerCase();
+  renderReport();
+});
+document.getElementById('report-exec-filter').addEventListener('change', (e) => {
+  reportState.execFilter = e.target.value;
+  renderReport();
+});
+
+[reportState.from, reportState.to] = rangePreset('this-month');
+reportFromInput.value = reportState.from;
+reportToInput.value = reportState.to;
+
+// Listens to the deliveries of the selected range; started the first time
+// the Reports tab is opened, and re-pointed when the range changes.
+function ensureReportListener() {
+  const { from, to } = reportState;
+  const key = `${from}|${to}`;
+  if (unsubscribeReportSnapshot && reportListenedRange === key) return;
+  stopReportListener();
+  if (!from || !to || from > to) {
+    renderReport();
+    return;
+  }
+  reportListenedRange = key;
+  const loading = document.getElementById('report-loading-state');
+  loading.hidden = false;
+  loading.textContent = 'Loading deliveries…';
+  unsubscribeReportSnapshot = onSnapshot(
+    query(collection(db, 'deliveries'), where('date', '>=', from), where('date', '<=', to)),
+    (snap) => {
+      reportDeliveries = snap.docs.map((d) => d.data());
+      loading.hidden = true;
+      renderReport();
+    },
+    (err) => { loading.textContent = 'Could not load deliveries: ' + err.message; },
+  );
+}
+
+function stopReportListener() {
+  if (unsubscribeReportSnapshot) unsubscribeReportSnapshot();
+  unsubscribeReportSnapshot = null;
+  reportListenedRange = '';
+  reportDeliveries = [];
+}
+
+function populateReportExecFilter() {
+  const select = document.getElementById('report-exec-filter');
+  const execs = allDeliveryExecs.filter(inBranch);
+  select.innerHTML = '';
+  [['all', 'All Executives'], ['unassigned', 'Unassigned'], ...execs.map((d) => [d.id, d.name])].forEach(([value, label]) => {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label;
+    select.appendChild(opt);
+  });
+  if (!['all', 'unassigned'].includes(reportState.execFilter) && !execs.some((d) => d.id === reportState.execFilter)) reportState.execFilter = 'all';
+  select.value = reportState.execFilter;
+}
+
+// Map of subscriberId -> Map of date -> delivery doc.
+function deliveriesBySubscriber() {
+  const bySub = new Map();
+  reportDeliveries.forEach((rec) => {
+    if (!bySub.has(rec.subscriberId)) bySub.set(rec.subscriberId, new Map());
+    bySub.get(rec.subscriberId).set(rec.date, rec);
+  });
+  return bySub;
+}
+
+// The due dates of a subscriber inside [from, to]: Monday–Saturday within
+// the subscription window, never after today.
+function dueDates(sub, from, to) {
+  const start = toDate(sub.startDate);
+  if (!start) return [];
+  const end = toDate(sub.endDate) || start;
+  const today = toDateInputValue(new Date());
+  const first = [from, toDateInputValue(start)].sort()[1];
+  const last = [to, toDateInputValue(end), today].sort()[0];
+  return first > last ? [] : datesBetween(first, last).filter((d) => !isSundayValue(d));
+}
+
+function buildReportRow(sub, days) {
+  const { from, to } = reportState;
+  const counts = { breakfast: 0, lunch: 0, dinner: 0 };
+  let lastDelivery = '';
+  days.forEach((rec, date) => {
+    MEALS.forEach(([meal]) => {
+      if (!rec[meal]) return;
+      counts[meal] += 1;
+      if (date > lastDelivery) lastDelivery = date;
+    });
+  });
+  // Today's unticked meals are still pending rather than missed.
+  const today = toDateInputValue(new Date());
+  const due = dueDates(sub, from, to);
+  const unticked = (d) => MEALS.filter(([meal]) => !days.get(d)?.[meal]).length;
+  const missed = due.filter((d) => d < today).reduce((n, d) => n + unticked(d), 0);
+  const pending = due.includes(today) ? unticked(today) : 0;
+  const delivered = counts.breakfast + counts.lunch + counts.dinner;
+  return { sub, counts, delivered, daysDue: due.length, expected: due.length * MEALS.length, missed, pending, lastDelivery };
+}
+
+function getReportRows() {
+  const { from, to, search, execFilter } = reportState;
+  if (!from || !to || from > to) return [];
+  const bySub = deliveriesBySubscriber();
+  return allSubscribers
+    .filter(inBranch)
+    .filter((s) => matchesAssignee(execFilter, s.deliveryExecId))
+    .filter((s) => !search || `${s.name || ''} ${s.phone || ''}`.toLowerCase().includes(search))
+    .map((s) => buildReportRow(s, bySub.get(s.id) || new Map()))
+    .filter((r) => r.daysDue > 0 || r.delivered > 0)
+    .sort((a, b) => (a.sub.name || '').localeCompare(b.sub.name || ''));
+}
+
+// Share of due meals delivered, leaving out today's still-pending ones.
+function deliveryRate({ expected, missed, pending }) {
+  const settled = expected - pending;
+  return settled ? Math.round(((settled - missed) / settled) * 100) + '%' : '—';
+}
+
+function renderReport() {
+  populateReportExecFilter();
+  const rows = getReportRows();
+  const total = (key) => rows.reduce((n, r) => n + r[key], 0);
+  const totals = { expected: total('expected'), missed: total('missed'), pending: total('pending') };
+  document.getElementById('report-stat-subs').textContent = rows.length;
+  document.getElementById('report-stat-delivered').textContent = total('delivered');
+  document.getElementById('report-stat-expected').textContent = totals.expected;
+  document.getElementById('report-stat-missed').textContent = totals.missed;
+  document.getElementById('report-stat-rate').textContent = deliveryRate(totals);
+
+  const tbody = document.getElementById('report-tbody');
+  tbody.innerHTML = '';
+  const loading = document.getElementById('report-loading-state');
+  document.getElementById('report-empty-state').hidden = rows.length > 0 || !loading.hidden;
+  rows.forEach((r) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="cell-name">${escapeHtml(r.sub.name || '—')}</td>
+      <td>${escapeHtml(r.sub.branchName || '—')}</td>
+      <td>${escapeHtml(r.sub.plan || '—')}</td>
+      <td>${escapeHtml(r.sub.deliveryExecName || '—')}</td>
+      <td>${r.daysDue}</td>
+      <td>${r.counts.breakfast}</td>
+      <td>${r.counts.lunch}</td>
+      <td>${r.counts.dinner}</td>
+      <td><strong>${r.delivered}</strong> / ${r.expected}</td>
+      <td class="${r.missed ? 'report-missed' : ''}">${r.missed}</td>
+      <td>${r.lastDelivery ? formatShortDate(parseDateInput(r.lastDelivery)) : '—'}</td>
+    `;
+    tr.addEventListener('click', () => openReportDrawer(r.sub.id));
+    tbody.appendChild(tr);
+  });
+
+  if (activeReportSubId && !reportDrawer.hidden) renderReportDrawer();
+}
+
+// ---------- CSV ----------
+function downloadCsv(filename, rows) {
+  const csv = rows.map((row) => row.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('report-csv-btn').addEventListener('click', () => {
+  const rows = getReportRows();
+  downloadCsv(`poshana-deliveries-${reportState.from}-to-${reportState.to}.csv`, [
+    ['Name', 'Phone', 'Branch', 'Plan', 'Executive', 'Days due', 'Breakfast', 'Lunch', 'Dinner', 'Delivered', 'Expected', 'Missed', 'Delivery rate', 'Last delivery'],
+    ...rows.map((r) => [
+      r.sub.name, r.sub.phone, r.sub.branchName, r.sub.plan, r.sub.deliveryExecName, r.daysDue,
+      r.counts.breakfast, r.counts.lunch, r.counts.dinner, r.delivered, r.expected, r.missed,
+      deliveryRate(r), r.lastDelivery,
+    ]),
+  ]);
+});
+
+// ---------- Report drawer (one subscriber, day by day) ----------
+const reportDrawer = document.getElementById('report-drawer');
+let activeReportSubId = null;
+
+function openReportDrawer(id) {
+  activeReportSubId = id;
+  renderReportDrawer();
+  reportDrawer.hidden = false;
+}
+
+function closeReportDrawer() {
+  reportDrawer.hidden = true;
+  activeReportSubId = null;
+}
+
+document.getElementById('report-drawer-close').addEventListener('click', closeReportDrawer);
+document.getElementById('report-drawer-backdrop').addEventListener('click', closeReportDrawer);
+document.getElementById('report-drawer-open-sub').addEventListener('click', () => {
+  const id = activeReportSubId;
+  closeReportDrawer();
+  openSubscriberDrawer(id);
+});
+
+// Days shown for one subscriber: the subscription days inside the range
+// (Sundays included, marked as off) plus any day with a delivery recorded.
+function reportDays(sub, days) {
+  const { from, to } = reportState;
+  const start = toDate(sub.startDate);
+  const end = toDate(sub.endDate) || start;
+  const set = new Set(days.keys());
+  if (start) {
+    const first = [from, toDateInputValue(start)].sort()[1];
+    const last = [to, toDateInputValue(end)].sort()[0];
+    if (first <= last) datesBetween(first, last).forEach((d) => set.add(d));
+  }
+  return Array.from(set).sort();
+}
+
+function renderReportDrawer() {
+  const sub = allSubscribers.find((s) => s.id === activeReportSubId);
+  if (!sub) {
+    closeReportDrawer();
+    return;
+  }
+  const days = deliveriesBySubscriber().get(sub.id) || new Map();
+  const row = buildReportRow(sub, days);
+  const today = toDateInputValue(new Date());
+
+  document.getElementById('report-drawer-title').textContent = sub.name || 'Unnamed';
+  document.getElementById('report-drawer-period').textContent =
+    `${formatShortDate(parseDateInput(reportState.from))} – ${formatShortDate(parseDateInput(reportState.to))} · ${sub.plan || '—'} · ${sub.deliveryExecName || 'No executive'}`;
+  document.getElementById('report-drawer-summary').innerHTML = [
+    ['Delivered', `${row.delivered} / ${row.expected}`],
+    ['Missed', row.missed],
+    ['Rate', deliveryRate(row)],
+    ['Breakfast', row.counts.breakfast],
+    ['Lunch', row.counts.lunch],
+    ['Dinner', row.counts.dinner],
+  ].map(([label, value]) => `<div><strong>${value}</strong><span>${label}</span></div>`).join('');
+
+  const tbody = document.getElementById('report-days-tbody');
+  const dates = reportDays(sub, days);
+  tbody.innerHTML = dates.length ? '' : '<tr><td colspan="4" class="assigned-empty">No subscription days in this period.</td></tr>';
+  dates.forEach((date) => {
+    const rec = days.get(date) || {};
+    const label = parseDateInput(date).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' });
+    const tr = document.createElement('tr');
+    if (isSundayValue(date) && !MEALS.some(([meal]) => rec[meal])) {
+      tr.innerHTML = `<td>${label}</td><td colspan="3" class="report-off">Sunday — no delivery</td>`;
+    } else {
+      tr.innerHTML = `<td>${label}</td>` + MEALS.map(([meal]) => {
+        const done = rec[meal];
+        if (done) return `<td class="report-done">✓ ${escapeHtml(formatMealTime(done.at))}<br><small>${escapeHtml(done.byName || '')}</small></td>`;
+        if (date > today) return '<td class="report-off">—</td>';
+        return date === today ? '<td class="report-off">Pending</td>' : '<td class="report-missed">✗ Missed</td>';
+      }).join('');
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+document.getElementById('report-drawer-csv-btn').addEventListener('click', () => {
+  const sub = allSubscribers.find((s) => s.id === activeReportSubId);
+  if (!sub) return;
+  const days = deliveriesBySubscriber().get(sub.id) || new Map();
+  const today = toDateInputValue(new Date());
+  const header = ['Date', 'Day'];
+  MEALS.forEach(([, label]) => header.push(label, `${label} by`, `${label} time`));
+  const rows = reportDays(sub, days).map((date) => {
+    const rec = days.get(date) || {};
+    const out = [date, parseDateInput(date).toLocaleDateString('en-IN', { weekday: 'short' })];
+    MEALS.forEach(([meal]) => {
+      const done = rec[meal];
+      const status = done ? 'Delivered' : isSundayValue(date) ? 'Sunday' : date > today ? '' : date === today ? 'Pending' : 'Missed';
+      out.push(status, done?.byName || '', done ? formatMealTime(done.at) : '');
+    });
+    return out;
+  });
+  const safeName = (sub.name || 'subscriber').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+  downloadCsv(`poshana-deliveries-${safeName}-${reportState.from}-to-${reportState.to}.csv`, [header, ...rows]);
 });
