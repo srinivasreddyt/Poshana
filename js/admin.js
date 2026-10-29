@@ -353,11 +353,22 @@ function readBranch(selectId) {
 // Mentor / delivery exec options for the subscriber form: people in the
 // subscriber's branch (or with no branch yet). When opening an existing
 // subscriber, keepCurrent also keeps their current assignee listed.
+// The empty option explains an empty list: no branch picked yet, or nobody
+// in that branch.
 function populateSubAssignees(mentorId, deId, keepCurrent) {
-  const branchId = document.getElementById('sub-branch').value;
+  const branchSelect = document.getElementById('sub-branch');
+  const branchId = branchSelect.value;
+  const branchName = branchSelect.selectedOptions[0]?.textContent;
   const allowed = (p, currentId) => !p.branchId || p.branchId === branchId || (keepCurrent && p.id === currentId);
-  populateAssigneeSelect('sub-mentor', allMentors.filter((p) => allowed(p, mentorId)), mentorId, 'specialization');
-  populateAssigneeSelect('sub-delivery-exec', allDeliveryExecs.filter((p) => allowed(p, deId)), deId, 'area');
+  const emptyLabel = (people, tab) => {
+    if (people.length) return 'Unassigned';
+    if (!branchId) return 'Select a branch first';
+    return `None in ${branchName} yet — add one in the ${tab} tab`;
+  };
+  const mentors = allMentors.filter((p) => allowed(p, mentorId));
+  const execs = allDeliveryExecs.filter((p) => allowed(p, deId));
+  populateAssigneeSelect('sub-mentor', mentors, mentorId, 'specialization', emptyLabel(mentors, 'Mentors'));
+  populateAssigneeSelect('sub-delivery-exec', execs, deId, 'area', emptyLabel(execs, 'Delivery Executives'));
 }
 
 document.getElementById('sub-branch').addEventListener('change', () => {
@@ -805,9 +816,13 @@ function updateComputedEndPreview() {
 document.getElementById('sub-start-date').addEventListener('input', updateComputedEndPreview);
 document.getElementById('sub-duration').addEventListener('change', updateComputedEndPreview);
 
-function populateAssigneeSelect(selectId, people, selectedId, detailKey) {
+function populateAssigneeSelect(selectId, people, selectedId, detailKey, emptyLabel = 'Unassigned') {
   const select = document.getElementById(selectId);
-  select.innerHTML = '<option value="">Unassigned</option>';
+  select.innerHTML = '';
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = emptyLabel;
+  select.appendChild(none);
   people.forEach((p) => {
     const opt = document.createElement('option');
     opt.value = p.id;
