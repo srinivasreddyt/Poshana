@@ -181,6 +181,11 @@ function isSunday(value) {
   return parseYmd(value).getDay() === 0;
 }
 
+// Meals can only be ticked on or after the day they are due.
+function isFuture(value) {
+  return value > ymd(new Date());
+}
+
 // Whether the subscription window [startDate, endDate] includes the date.
 function coversDate(sub, value) {
   const start = toDate(sub.startDate);
@@ -198,6 +203,10 @@ function isDeliverable(sub) {
 const MEALS = [['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner']];
 
 async function toggleMeal(sub, meal, checked, input) {
+  if (isFuture(state.date)) {
+    input.checked = !checked;
+    return;
+  }
   input.disabled = true;
   try {
     await setDoc(doc(db, 'deliveries', `${sub.id}_${state.date}`), {
@@ -345,9 +354,12 @@ function renderTable() {
 
   const showMeals = !!state.date && !isSunday(state.date);
   document.querySelectorAll('.meal-col').forEach((th) => { th.hidden = !showMeals; });
+  const future = !!state.date && isFuture(state.date);
   const note = document.getElementById('date-note');
-  note.hidden = !state.date || !isSunday(state.date);
-  note.textContent = 'Sunday — no deliveries (cheat day).';
+  note.hidden = !state.date || (!isSunday(state.date) && !future);
+  note.textContent = isSunday(state.date || ymd(new Date()))
+    ? 'Sunday — no deliveries (cheat day).'
+    : 'Upcoming day — meals can be marked delivered on the day itself.';
 
   const deliverable = filtered.filter(isDeliverable);
   const delivered = deliverable.reduce((n, s) => n + MEALS.filter(([meal]) => deliveries.get(s.id)?.[meal]).length, 0);
@@ -364,8 +376,9 @@ function renderTable() {
     const mealCells = !showMeals ? '' : MEALS.map(([meal, label]) => {
       if (!isDeliverable(s)) return '<td class="meal-cell">—</td>';
       const done = record[meal];
-      const title = done ? `${label} delivered by ${done.byName || 'an executive'}${done.at ? ' at ' + formatTime(done.at) : ''}` : `Mark ${label.toLowerCase()} delivered`;
-      return `<td class="meal-cell"><label class="meal-check" title="${escapeHtml(title)}"><input type="checkbox" data-meal="${meal}" aria-label="${label}"${done ? ' checked' : ''}></label></td>`;
+      const title = done ? `${label} delivered by ${done.byName || 'an executive'}${done.at ? ' at ' + formatTime(done.at) : ''}`
+        : future ? 'Can be marked on the day' : `Mark ${label.toLowerCase()} delivered`;
+      return `<td class="meal-cell"><label class="meal-check" title="${escapeHtml(title)}"><input type="checkbox" data-meal="${meal}" aria-label="${label}"${done ? ' checked' : ''}${future ? ' disabled' : ''}></label></td>`;
     }).join('');
     const tr = document.createElement('tr');
     tr.innerHTML = `

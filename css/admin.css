@@ -256,6 +256,7 @@
   accent-color: var(--green-700);
   cursor: pointer;
 }
+.meal-check input:disabled { cursor: not-allowed; opacity: 0.45; }
 
 .branch-search { position: relative; }
 .branch-search input[type="search"] { width: 100%; }
