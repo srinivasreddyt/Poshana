@@ -404,3 +404,23 @@
   .admin-drawer-panel { max-width: 100%; }
   .field-row { flex-direction: column; gap: 0; }
 }
+
+.consult-item { cursor: default; }
+.consult-item:hover { border-color: var(--border); }
+
+/* ---------- Mentor portal ---------- */
+.call-btn { margin: 4px 0 18px; justify-content: center; }
+.btn-sm { padding: 7px 16px; font-size: 0.82rem; }
+.consult-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.consult-header .drawer-section-label { margin: 0; }
+.consult-form {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.consult-form h3 { font-size: 1.05rem; margin-bottom: 12px; }
+.consult-item.editable { cursor: pointer; }
+.consult-item.editable:hover { border-color: var(--green-600); }
+.cell-call { color: var(--green-700); font-weight: 600; }

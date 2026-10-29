@@ -20,10 +20,10 @@ const ADMIN_EMAIL = "admin@poshana-admin.local";
 
 const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
 const {
-  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword,
 } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
 const {
-  getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, serverTimestamp,
+  getFirestore, collection, query, where, orderBy, onSnapshot, doc, updateDoc, addDoc, setDoc, getDocs, serverTimestamp,
 } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
 
 const app = initializeApp(firebaseConfig);
@@ -640,8 +640,48 @@ function openSubscriberDrawer(id) {
   document.getElementById('sub-notes').value = sub?.notes || '';
   document.getElementById('sub-save-status').textContent = '';
   updateComputedEndPreview();
+  loadSubscriberConsultations(activeSubscriberId);
 
   subDrawer.hidden = false;
+}
+
+async function loadSubscriberConsultations(subId) {
+  const section = document.getElementById('sub-consult-section');
+  const list = document.getElementById('sub-consult-list');
+  if (!subId) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  list.innerHTML = '<p class="assigned-empty">Loading…</p>';
+  try {
+    const snap = await getDocs(query(collection(db, 'consultations'), where('subscriberId', '==', subId)));
+    if (activeSubscriberId !== subId) return;
+    const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (toDate(b.date)?.getTime() || 0) - (toDate(a.date)?.getTime() || 0));
+    document.getElementById('sub-consult-count').textContent = items.length;
+    list.innerHTML = items.length
+      ? items.map(consultationCardHtml).join('')
+      : '<p class="assigned-empty">No consultations recorded yet.</p>';
+  } catch (err) {
+    list.innerHTML = `<p class="assigned-empty">Could not load consultations: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function consultationCardHtml(c) {
+  const lines = [];
+  if (c.weight || c.weight === 0) lines.push(`<strong>Weight:</strong> ${escapeHtml(String(c.weight))} kg`);
+  if (c.healthNotes) lines.push(`<strong>Health notes:</strong> ${escapeHtml(c.healthNotes)}`);
+  if (c.dietAdvice) lines.push(`<strong>Diet advice:</strong> ${escapeHtml(c.dietAdvice)}`);
+  if (c.nextFollowUp) lines.push(`<strong>Next follow-up:</strong> ${formatShortDate(c.nextFollowUp)}`);
+  return `
+    <div class="assigned-item consult-item">
+      <div class="assigned-item-top">
+        <strong>${formatShortDate(c.date)}</strong>
+        <span class="assigned-item-meta">${escapeHtml(c.mentorName || '')}</span>
+      </div>
+      <div class="assigned-item-meta">${lines.join('<br>') || 'No details.'}</div>
+    </div>`;
 }
 
 function closeSubscriberDrawer() {
@@ -944,6 +984,7 @@ function startListeningMentors() {
     renderMentorTable();
     populateAssigneeFilter('sub-mentor-filter', allMentors, 'mentorFilter', 'All Mentors', 'No Mentor');
     renderSubscribersTable();
+    if (activeMentorId && !mentorDrawer.hidden) renderMentorLogin(allMentors.find((x) => x.id === activeMentorId));
   }, (err) => {
     loadingState.textContent = 'Could not load mentors: ' + err.message;
   });
@@ -1041,9 +1082,90 @@ function openMentorDrawer(id) {
   document.getElementById('mentor-save-status').textContent = '';
 
   renderAssignedList('mentor', 'mentorId', id, closeMentorDrawer);
+  renderMentorLogin(m);
 
   mentorDrawer.hidden = false;
 }
+
+// ---------- Mentor login ----------
+// Mentors sign in on mentor.html with phone + PIN. Under the hood that is a
+// Firebase Auth email/password account whose email is derived from the
+// phone number (must match mentorLoginEmail in js/mentor.js).
+function normalizePhone(phone) {
+  return String(phone || '').replace(/\D/g, '').slice(-10);
+}
+
+function mentorLoginEmail(phone) {
+  return `m${normalizePhone(phone)}@poshana-mentor.local`;
+}
+
+function renderMentorLogin(m) {
+  const section = document.getElementById('mentor-login-section');
+  const info = document.getElementById('mentor-login-info');
+  const createBox = document.getElementById('mentor-login-create');
+  document.getElementById('mentor-login-pin').value = '';
+  document.getElementById('mentor-login-status').textContent = '';
+
+  if (!m) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+
+  if (m.loginUid) {
+    info.textContent = `Login active — mentor signs in at mentor.html with phone ${m.loginPhone} and their PIN.`;
+    createBox.hidden = true;
+  } else {
+    info.textContent = 'No login yet. Set a PIN to let this mentor sign in with their phone number.';
+    createBox.hidden = false;
+  }
+}
+
+// Creating a user with the client SDK signs that user in, so it's done on a
+// throwaway secondary app to keep the admin's own session intact.
+let secondaryAuth = null;
+function getSecondaryAuth() {
+  if (!secondaryAuth) {
+    secondaryAuth = getAuth(initializeApp(firebaseConfig, 'mentor-login-creator'));
+  }
+  return secondaryAuth;
+}
+
+document.getElementById('mentor-login-btn').addEventListener('click', async () => {
+  const status = document.getElementById('mentor-login-status');
+  const btn = document.getElementById('mentor-login-btn');
+  const m = allMentors.find((x) => x.id === activeMentorId);
+  const pin = document.getElementById('mentor-login-pin').value.trim();
+  const phone = normalizePhone(m?.phone);
+
+  if (!m) return;
+  if (phone.length !== 10) {
+    status.textContent = 'Save a valid 10-digit phone number for this mentor first.';
+    return;
+  }
+  if (!/^\d{6}$/.test(pin)) {
+    status.textContent = 'PIN must be exactly 6 digits.';
+    return;
+  }
+
+  btn.disabled = true;
+  status.textContent = 'Creating login…';
+  const tempAuth = getSecondaryAuth();
+  try {
+    const cred = await createUserWithEmailAndPassword(tempAuth, mentorLoginEmail(phone), pin);
+    const uid = cred.user.uid;
+    await signOut(tempAuth);
+    await setDoc(doc(db, 'mentorLogins', uid), { mentorId: m.id, phone, createdAt: serverTimestamp() });
+    await updateDoc(doc(db, 'mentors', m.id), { loginUid: uid, loginPhone: phone, updatedAt: serverTimestamp() });
+    status.textContent = 'Login created.';
+  } catch (err) {
+    status.textContent = err.code === 'auth/email-already-in-use'
+      ? 'A login already exists for this phone number.'
+      : 'Could not create login: ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 function closeMentorDrawer() {
   mentorDrawer.hidden = true;

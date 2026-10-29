@@ -387,6 +387,11 @@
         <span id="sub-save-status" class="drawer-save-status"></span>
       </div>
     </form>
+
+    <div id="sub-consult-section" class="assigned-section" hidden>
+      <span class="drawer-section-label">Consultations (<span id="sub-consult-count">0</span>)</span>
+      <div id="sub-consult-list"></div>
+    </div>
   </div>
 </div>
 
@@ -444,6 +449,21 @@
         <span id="mentor-save-status" class="drawer-save-status"></span>
       </div>
     </form>
+
+    <div id="mentor-login-section" class="assigned-section" hidden>
+      <span class="drawer-section-label">Mentor Login</span>
+      <p id="mentor-login-info" class="form-note mt-0"></p>
+      <div id="mentor-login-create">
+        <div class="field">
+          <label for="mentor-login-pin">Set a 6-digit PIN</label>
+          <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="mentor-login-pin" autocomplete="new-password" placeholder="••••••">
+        </div>
+        <div class="drawer-save-row">
+          <button type="button" id="mentor-login-btn" class="btn btn-primary">Create Login</button>
+          <span id="mentor-login-status" class="drawer-save-status"></span>
+        </div>
+      </div>
+    </div>
 
     <div id="mentor-assigned-section" class="assigned-section" hidden>
       <span class="drawer-section-label">Assigned Subscribers (<span id="mentor-assigned-count">0</span>)</span>

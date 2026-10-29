@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mentor Portal | Poshaná</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body class="admin-body">
+
+<!-- Login screen -->
+<div id="login-screen" class="admin-login">
+  <div class="admin-login-card">
+    <span class="brand-mark"><img src="assets/logo-icon.png" alt="Poshaná logo"></span>
+    <h1>Mentor Login</h1>
+    <p>Sign in with your phone number and PIN.</p>
+    <form id="login-form">
+      <div class="field">
+        <input type="tel" id="login-phone" inputmode="numeric" placeholder="Phone number" autocomplete="tel" required>
+      </div>
+      <input type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="current-password" maxlength="6" id="login-pin" class="pin-input" placeholder="••••••" required>
+      <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+    </form>
+    <p id="login-error" class="admin-error"></p>
+  </div>
+</div>
+
+<!-- Mentor app -->
+<div id="mentor-app" class="admin-app" hidden>
+  <aside class="admin-sidebar">
+    <a href="index.html" class="brand">
+      <span class="brand-mark"><img src="assets/logo-icon.png" alt="Poshaná logo"></span>
+      <span class="brand-text">Poshaná<small>Mentor Portal</small></span>
+    </a>
+    <nav class="admin-nav">
+      <button class="admin-nav-item active" type="button">👥 My Clients</button>
+    </nav>
+    <button id="logout-btn" class="admin-logout">Log out</button>
+  </aside>
+
+  <main class="admin-main">
+    <div class="admin-topbar">
+      <div>
+        <h1>My Clients</h1>
+        <p id="mentor-greeting" class="form-note mt-0"></p>
+      </div>
+      <div class="admin-stats">
+        <div class="admin-stat"><strong id="stat-clients">0</strong><span>Clients</span></div>
+        <div class="admin-stat"><strong id="stat-active">0</strong><span>Active</span></div>
+        <div class="admin-stat"><strong id="stat-due">0</strong><span>Follow-ups due</span></div>
+      </div>
+    </div>
+
+    <div class="admin-filters">
+      <div class="status-pills">
+        <button class="status-pill active" data-status-filter="all">All</button>
+        <button class="status-pill" data-status-filter="active">Active</button>
+        <button class="status-pill" data-status-filter="due">Follow-up due</button>
+      </div>
+      <input type="search" id="search-input" placeholder="Search name or phone…">
+    </div>
+
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Plan</th>
+            <th>Status</th>
+            <th>Last Consultation</th>
+            <th>Next Follow-up</th>
+          </tr>
+        </thead>
+        <tbody id="clients-tbody"></tbody>
+      </table>
+      <p id="loading-state" class="admin-loading">Loading your clients…</p>
+      <p id="empty-state" class="admin-empty" hidden>No clients to show.</p>
+    </div>
+  </main>
+</div>
+
+<!-- Client drawer -->
+<div id="client-drawer" class="admin-drawer" hidden>
+  <div class="admin-drawer-backdrop" id="client-drawer-backdrop"></div>
+  <div class="admin-drawer-panel">
+    <button class="admin-drawer-close" id="client-drawer-close">&times;</button>
+    <div class="drawer-badge-row"><span id="client-badge" class="badge badge-new">Active</span></div>
+    <h2 id="client-name">—</h2>
+
+    <a id="client-call-btn" class="btn btn-primary btn-block call-btn" href="#">📞 Call</a>
+
+    <div class="drawer-meta-row"><span>Phone</span><span id="client-phone">—</span></div>
+    <div class="drawer-meta-row"><span>Email</span><span id="client-email">—</span></div>
+    <div class="drawer-meta-row"><span>Plan</span><span id="client-plan">—</span></div>
+    <div class="drawer-meta-row"><span>Subscription</span><span id="client-dates">—</span></div>
+    <div class="drawer-meta-row"><span>Address</span><span id="client-address">—</span></div>
+
+    <div class="assigned-section">
+      <div class="consult-header">
+        <span class="drawer-section-label">Consultations (<span id="consult-count">0</span>)</span>
+        <button type="button" id="new-consult-btn" class="btn btn-outline btn-sm">+ New</button>
+      </div>
+
+      <form id="consult-form" class="consult-form" hidden>
+        <h3 id="consult-form-title">New Consultation</h3>
+        <div class="field-row">
+          <div class="field">
+            <label for="consult-date">Date</label>
+            <input type="date" id="consult-date" required>
+          </div>
+          <div class="field">
+            <label for="consult-weight">Weight (kg)</label>
+            <input type="number" id="consult-weight" min="0" step="0.1">
+          </div>
+        </div>
+        <div class="field">
+          <label for="consult-health">Health notes</label>
+          <textarea id="consult-health" placeholder="Symptoms, energy, sleep, issues discussed…"></textarea>
+        </div>
+        <div class="field">
+          <label for="consult-diet">Diet advice</label>
+          <textarea id="consult-diet" placeholder="Changes recommended, foods to add or avoid…"></textarea>
+        </div>
+        <div class="field">
+          <label for="consult-followup">Next follow-up</label>
+          <input type="date" id="consult-followup">
+        </div>
+        <div class="drawer-save-row">
+          <button type="submit" id="consult-save-btn" class="btn btn-primary">Save Consultation</button>
+          <button type="button" id="consult-cancel-btn" class="btn-clear-filters">Cancel</button>
+          <span id="consult-save-status" class="drawer-save-status"></span>
+        </div>
+      </form>
+
+      <div id="consult-list"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/mentor.js"></script>
+</body>
+</html>
