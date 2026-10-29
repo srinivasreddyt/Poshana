@@ -41,6 +41,18 @@ service cloud.firestore {
       allow read: if isAdmin() || (isDeliveryExec() && deId == myDeId());
       allow write: if isAdmin();
     }
+    // One doc per subscriber per day ({subscriberId}_{YYYY-MM-DD}). Any
+    // executive in the subscriber's branch can tick meals as delivered.
+    match /deliveries/{deliveryId} {
+      allow read: if isAdmin()
+        || (isDeliveryExec() && myDeBranch() != null && resource.data.branchId == myDeBranch());
+      allow create, update: if isAdmin()
+        || (isDeliveryExec() && myDeBranch() != null
+            && request.resource.data.branchId == myDeBranch()
+            && deliveryId == request.resource.data.subscriberId + '_' + request.resource.data.date
+            && get(/databases/$(database)/documents/subscribers/$(request.resource.data.subscriberId)).data.branchId == myDeBranch());
+      allow delete: if isAdmin();
+    }
     match /deliveryLogins/{uid} {
       allow read: if isAdmin() || (request.auth != null && request.auth.uid == uid);
       allow write: if isAdmin();

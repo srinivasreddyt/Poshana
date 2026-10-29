@@ -6,6 +6,11 @@
 // js/admin.js). They see every subscriber in their own branch (their own
 // ones first, via the filter), and nothing from other branches. Firestore
 // rules only allow the query filtered on their branchId.
+//
+// Deliveries are tracked per subscriber per day in deliveries/{subId}_{date},
+// with a breakfast / lunch / dinner field each set to who delivered it (or
+// null). Any executive in the branch can tick them, so they can cover for
+// each other. There are no deliveries on Sundays.
 // ============================================
 const firebaseConfig = {
   apiKey: "AIzaSyA6q2cN75_iHY9-hzyb6C6gObjrUBFOH94",
@@ -21,7 +26,7 @@ const {
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
 } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
 const {
-  getFirestore, collection, query, where, onSnapshot, doc, getDoc,
+  getFirestore, collection, query, where, onSnapshot, doc, getDoc, setDoc, serverTimestamp,
 } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
 
 const app = initializeApp(firebaseConfig);
@@ -35,7 +40,9 @@ const loginError = document.getElementById('login-error');
 
 let exec = null; // { id, name, branchId, ... }
 let subs = []; // every subscriber in the executive's branch
+let deliveries = new Map(); // subscriberId -> delivery doc for state.date
 let unsubscribers = [];
+let unsubscribeDeliveries = null;
 
 function normalizePhone(phone) {
   return String(phone || '').replace(/\D/g, '').slice(-10);
@@ -110,6 +117,9 @@ function stopListening() {
   unsubscribers.forEach((fn) => fn());
   unsubscribers = [];
   subs = [];
+  if (unsubscribeDeliveries) unsubscribeDeliveries();
+  unsubscribeDeliveries = null;
+  deliveries = new Map();
 }
 
 function startListening() {
@@ -132,9 +142,84 @@ function startListening() {
     },
     (err) => { loading.textContent = 'Could not load subscribers: ' + err.message; },
   ));
+  listenDeliveries();
+}
+
+// Re-subscribes to the delivery docs of the selected date.
+function listenDeliveries() {
+  if (unsubscribeDeliveries) unsubscribeDeliveries();
+  unsubscribeDeliveries = null;
+  deliveries = new Map();
+  if (!exec?.branchId || !state.date) {
+    render();
+    return;
+  }
+  const date = state.date;
+  unsubscribeDeliveries = onSnapshot(
+    query(collection(db, 'deliveries'), where('branchId', '==', exec.branchId), where('date', '==', date)),
+    (snap) => {
+      if (date !== state.date) return;
+      deliveries = new Map(snap.docs.map((d) => [d.data().subscriberId, d.data()]));
+      render();
+    },
+    (err) => { document.getElementById('date-note').textContent = 'Could not load deliveries: ' + err.message; },
+  );
+  render();
 }
 
 // ---------- Helpers ----------
+function ymd(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function parseYmd(value) {
+  const [y, m, d] = value.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function isSunday(value) {
+  return parseYmd(value).getDay() === 0;
+}
+
+// Whether the subscription window [startDate, endDate] includes the date.
+function coversDate(sub, value) {
+  const start = toDate(sub.startDate);
+  if (!start) return false;
+  const end = toDate(sub.endDate) || start;
+  return ymd(start) <= value && value <= ymd(end);
+}
+
+// Meals are delivered on the selected date only to active subscribers whose
+// subscription covers it, and never on Sundays.
+function isDeliverable(sub) {
+  return !!state.date && !isSunday(state.date) && (sub.status || 'active') === 'active' && coversDate(sub, state.date);
+}
+
+const MEALS = [['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner']];
+
+async function toggleMeal(sub, meal, checked, input) {
+  input.disabled = true;
+  try {
+    await setDoc(doc(db, 'deliveries', `${sub.id}_${state.date}`), {
+      subscriberId: sub.id,
+      subscriberName: sub.name || '',
+      branchId: exec.branchId,
+      date: state.date,
+      [meal]: checked ? { by: exec.id, byName: exec.name || '', at: serverTimestamp() } : null,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch (err) {
+    input.checked = !checked;
+    alert('Could not save: ' + err.message);
+  } finally {
+    input.disabled = false;
+  }
+}
+
+function formatTime(ts) {
+  const d = toDate(ts);
+  return d ? d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+}
 function toDate(ts) {
   if (!ts) return null;
   if (typeof ts.toDate === 'function') return ts.toDate();
@@ -168,7 +253,27 @@ const statusBadgeClass = { active: 'badge-new', paused: 'badge-paused', cancelle
 
 // ---------- Subscriber list ----------
 // execFilter: 'mine' (default), 'all', 'unassigned', or another executive's id.
-const state = { status: 'all', execFilter: 'mine', search: '' };
+// date: 'YYYY-MM-DD' (defaults to today); empty shows every subscriber.
+const state = { status: 'all', execFilter: 'mine', search: '', date: ymd(new Date()) };
+
+const dateInput = document.getElementById('date-filter');
+dateInput.value = state.date;
+
+function setDate(value) {
+  state.date = value;
+  dateInput.value = value;
+  if (exec) listenDeliveries();
+}
+
+dateInput.addEventListener('change', () => setDate(dateInput.value));
+document.getElementById('date-today').addEventListener('click', () => setDate(ymd(new Date())));
+[['date-prev', -1], ['date-next', 1]].forEach(([id, step]) => {
+  document.getElementById(id).addEventListener('click', () => {
+    const d = state.date ? parseYmd(state.date) : new Date();
+    d.setDate(d.getDate() + step);
+    setDate(ymd(d));
+  });
+});
 
 document.querySelectorAll('[data-status-filter]').forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -231,11 +336,23 @@ function render() {
 function renderTable() {
   const tbody = document.getElementById('subs-tbody');
   const filtered = subs.filter((s) => {
+    if (state.date && !coversDate(s, state.date)) return false;
     if (state.status !== 'all' && (s.status || 'active') !== state.status) return false;
     if (!matchesExecFilter(s)) return false;
     if (state.search && !`${s.name || ''} ${s.phone || ''} ${s.address || ''}`.toLowerCase().includes(state.search)) return false;
     return true;
   });
+
+  const showMeals = !!state.date && !isSunday(state.date);
+  document.querySelectorAll('.meal-col').forEach((th) => { th.hidden = !showMeals; });
+  const note = document.getElementById('date-note');
+  note.hidden = !state.date || !isSunday(state.date);
+  note.textContent = 'Sunday — no deliveries (cheat day).';
+
+  const deliverable = filtered.filter(isDeliverable);
+  const delivered = deliverable.reduce((n, s) => n + MEALS.filter(([meal]) => deliveries.get(s.id)?.[meal]).length, 0);
+  document.getElementById('stat-delivered-box').hidden = !showMeals;
+  document.getElementById('stat-delivered').textContent = `${delivered}/${deliverable.length * MEALS.length}`;
 
   document.getElementById('stat-shown').textContent = filtered.length;
   tbody.innerHTML = '';
@@ -243,9 +360,17 @@ function renderTable() {
 
   filtered.forEach((s) => {
     const status = s.status || 'active';
+    const record = deliveries.get(s.id) || {};
+    const mealCells = !showMeals ? '' : MEALS.map(([meal, label]) => {
+      if (!isDeliverable(s)) return '<td class="meal-cell">—</td>';
+      const done = record[meal];
+      const title = done ? `${label} delivered by ${done.byName || 'an executive'}${done.at ? ' at ' + formatTime(done.at) : ''}` : `Mark ${label.toLowerCase()} delivered`;
+      return `<td class="meal-cell"><label class="meal-check" title="${escapeHtml(title)}"><input type="checkbox" data-meal="${meal}" aria-label="${label}"${done ? ' checked' : ''}></label></td>`;
+    }).join('');
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="cell-name">${escapeHtml(s.name || '—')}</td>
+      ${mealCells}
       <td>${s.phone ? `<a class="cell-call" href="tel:+91${escapeHtml(normalizePhone(s.phone))}">📞 ${escapeHtml(s.phone)}</a>` : '—'}</td>
       <td>${escapeHtml(s.address || '—')}</td>
       <td>${escapeHtml(s.plan || '—')}</td>
@@ -253,6 +378,10 @@ function renderTable() {
       <td>${escapeHtml(execLabel(s))}</td>
     `;
     tr.querySelector('.cell-call')?.addEventListener('click', (e) => e.stopPropagation());
+    tr.querySelectorAll('.meal-check').forEach((label) => label.addEventListener('click', (e) => e.stopPropagation()));
+    tr.querySelectorAll('.meal-check input').forEach((input) => {
+      input.addEventListener('change', () => toggleMeal(s, input.dataset.meal, input.checked, input));
+    });
     tr.addEventListener('click', () => openSubDrawer(s.id));
     tbody.appendChild(tr);
   });
@@ -303,4 +432,22 @@ function renderSubDrawer() {
   document.getElementById('sub-plan').textContent = s.plan || '—';
   document.getElementById('sub-dates').textContent = `${formatShortDate(s.startDate)} – ${formatShortDate(s.endDate)}`;
   document.getElementById('sub-exec').textContent = execLabel(s);
+
+  const section = document.getElementById('sub-delivery-section');
+  section.hidden = !state.date;
+  if (!state.date) return;
+  document.getElementById('sub-delivery-date').textContent = formatShortDate(parseYmd(state.date));
+  const list = document.getElementById('sub-delivery-list');
+  if (isSunday(state.date)) {
+    list.innerHTML = '<p class="assigned-empty">No deliveries on Sunday.</p>';
+  } else if (!isDeliverable(s)) {
+    list.innerHTML = '<p class="assigned-empty">No delivery due — subscription not active on this date.</p>';
+  } else {
+    const record = deliveries.get(s.id) || {};
+    list.innerHTML = MEALS.map(([meal, label]) => {
+      const done = record[meal];
+      const detail = done ? `✅ Delivered by ${escapeHtml(done.byName || 'an executive')}${done.at ? ' at ' + formatTime(done.at) : ''}` : '⬜ Not delivered yet';
+      return `<div class="drawer-meta-row"><span>${label}</span><span>${detail}</span></div>`;
+    }).join('');
+  }
 }

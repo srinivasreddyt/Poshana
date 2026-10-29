@@ -54,10 +54,17 @@
         <div class="admin-stat"><strong id="stat-mine">0</strong><span>Assigned to me</span></div>
         <div class="admin-stat"><strong id="stat-mine-active">0</strong><span>My active</span></div>
         <div class="admin-stat"><strong id="stat-shown">0</strong><span>Shown</span></div>
+        <div class="admin-stat" id="stat-delivered-box"><strong id="stat-delivered">0/0</strong><span>Meals delivered</span></div>
       </div>
     </div>
 
     <div class="admin-filters">
+      <div class="date-nav">
+        <button type="button" id="date-prev" class="date-nav-btn" aria-label="Previous day">‹</button>
+        <input type="date" id="date-filter" aria-label="Delivery date">
+        <button type="button" id="date-next" class="date-nav-btn" aria-label="Next day">›</button>
+        <button type="button" id="date-today" class="btn-clear-filters">Today</button>
+      </div>
       <div class="status-pills">
         <button class="status-pill active" data-status-filter="all">All</button>
         <button class="status-pill" data-status-filter="active">Active</button>
@@ -67,11 +74,16 @@
       <input type="search" id="search-input" placeholder="Search name, phone or address…">
     </div>
 
+    <p id="date-note" class="date-note" hidden></p>
+
     <div class="admin-table-wrap">
       <table class="admin-table">
         <thead>
           <tr>
             <th>Name</th>
+            <th class="meal-col">Breakfast</th>
+            <th class="meal-col">Lunch</th>
+            <th class="meal-col">Dinner</th>
             <th>Phone</th>
             <th>Address</th>
             <th>Plan</th>
@@ -104,6 +116,11 @@
     <div class="drawer-meta-row"><span>Plan</span><span id="sub-plan">—</span></div>
     <div class="drawer-meta-row"><span>Subscription</span><span id="sub-dates">—</span></div>
     <div class="drawer-meta-row"><span>Delivery executive</span><span id="sub-exec">—</span></div>
+
+    <div id="sub-delivery-section" class="assigned-section">
+      <span class="drawer-section-label">Deliveries on <span id="sub-delivery-date">—</span></span>
+      <div id="sub-delivery-list"></div>
+    </div>
   </div>
 </div>
 
