@@ -7,7 +7,7 @@
 // authenticated session (request.auth != null) for read/update —
 // the PIN is not just a client-side gate.
 // ============================================
-import { consultationDetailsHtml } from './consultation-format.js';
+import { visitDetailsHtml, profileHtml, findProfileSource } from './consultation-format.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyA6q2cN75_iHY9-hzyb6C6gObjrUBFOH94",
@@ -661,23 +661,27 @@ async function loadSubscriberConsultations(subId) {
     if (activeSubscriberId !== subId) return;
     const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (toDate(b.date)?.getTime() || 0) - (toDate(a.date)?.getTime() || 0));
+    const profileSource = findProfileSource(items);
+    document.getElementById('sub-profile').innerHTML = profileSource
+      ? profileHtml(profileSource.profile)
+      : '<p class="assigned-empty">Not recorded yet — the mentor captures it during the first consultation.</p>';
     document.getElementById('sub-consult-count').textContent = items.length;
     list.innerHTML = items.length
-      ? items.map(consultationCardHtml).join('')
+      ? items.map((c) => consultationCardHtml(c, profileSource)).join('')
       : '<p class="assigned-empty">No consultations recorded yet.</p>';
   } catch (err) {
     list.innerHTML = `<p class="assigned-empty">Could not load consultations: ${escapeHtml(err.message)}</p>`;
   }
 }
 
-function consultationCardHtml(c) {
+function consultationCardHtml(c, profileSource) {
   return `
     <div class="assigned-item consult-item">
       <div class="assigned-item-top">
-        <strong>${formatShortDate(c.date)}</strong>
+        <strong>${formatShortDate(c.date)}${c.id === profileSource?.id ? ' · First consultation' : ''}</strong>
         <span class="assigned-item-meta">${escapeHtml(c.mentorName || '')}</span>
       </div>
-      <div class="assigned-item-meta">${consultationDetailsHtml(c)}</div>
+      <div class="assigned-item-meta">${visitDetailsHtml(c, profileSource?.profile?.height)}</div>
     </div>`;
 }
 

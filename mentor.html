@@ -103,6 +103,11 @@
     <div class="drawer-meta-row"><span>Address</span><span id="client-address">—</span></div>
 
     <div class="assigned-section">
+      <span class="drawer-section-label">Health profile</span>
+      <div id="client-profile" class="profile-box"></div>
+    </div>
+
+    <div class="assigned-section">
       <div class="consult-header">
         <span class="drawer-section-label">Consultations (<span id="consult-count">0</span>)</span>
         <button type="button" id="new-consult-btn" class="btn btn-outline btn-sm">+ New</button>
@@ -110,14 +115,15 @@
 
       <form id="consult-form" class="consult-form" hidden>
         <h3 id="consult-form-title">New Consultation</h3>
-        <p id="consult-prefill-note" class="form-note mt-0" hidden>Profile pre-filled from the last consultation — update anything that has changed.</p>
+        <p id="consult-first-note" class="form-note mt-0" hidden>First consultation — record the client's health profile. It will then appear in their details.</p>
 
         <div class="field">
           <label for="consult-date">Consultation date</label>
           <input type="date" id="consult-date" required>
         </div>
 
-        <span class="consult-group-label">Client profile</span>
+        <div id="consult-profile-fields">
+        <span class="consult-group-label">Client profile — recorded once</span>
         <div class="field">
           <label for="consult-name">Name</label>
           <input type="text" id="consult-name">
@@ -137,17 +143,10 @@
             </select>
           </div>
         </div>
-        <div class="field-row">
-          <div class="field">
-            <label for="consult-height">Height (cm)</label>
-            <input type="number" id="consult-height" min="0" step="0.1">
-          </div>
-          <div class="field">
-            <label for="consult-weight">Weight (kg)</label>
-            <input type="number" id="consult-weight" min="0" step="0.1">
-          </div>
+        <div class="field">
+          <label for="consult-height">Height (cm)</label>
+          <input type="number" id="consult-height" min="0" step="0.1">
         </div>
-        <p id="consult-bmi" class="form-note mt-0"></p>
         <div class="field">
           <label for="consult-comorbidities">Co-morbidities</label>
           <input type="text" id="consult-comorbidities" placeholder="e.g. Diabetes, Hypertension, Thyroid">
@@ -184,8 +183,14 @@
           <label for="consult-beliefs">Belief systems on food</label>
           <textarea id="consult-beliefs" placeholder="e.g. Vegetarian on Tuesdays, fasts during festivals, avoids onion & garlic…"></textarea>
         </div>
+        </div>
 
         <span class="consult-group-label">This consultation</span>
+        <div class="field">
+          <label for="consult-weight">Weight today (kg)</label>
+          <input type="number" id="consult-weight" min="0" step="0.1">
+        </div>
+        <p id="consult-bmi" class="form-note mt-0"></p>
         <div class="field">
           <label for="consult-health">Health notes</label>
           <textarea id="consult-health" placeholder="Symptoms, energy, sleep, issues discussed…"></textarea>

@@ -7,7 +7,7 @@
 // consultations belonging to the signed-in mentor, so every query here
 // must filter on mentorId to be allowed.
 // ============================================
-import { consultationDetailsHtml, computeBmi } from './consultation-format.js';
+import { visitDetailsHtml, profileHtml, findProfileSource, computeBmi } from './consultation-format.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyA6q2cN75_iHY9-hzyb6C6gObjrUBFOH94",
@@ -297,6 +297,11 @@ function renderClientDrawer() {
   document.getElementById('client-address').textContent = c.address || '—';
 
   const items = consultationsFor(c.id);
+  const profileSource = findProfileSource(items);
+  document.getElementById('client-profile').innerHTML = profileSource
+    ? profileHtml(profileSource.profile)
+    : '<p class="assigned-empty">Not recorded yet — it is captured during the first consultation.</p>';
+
   document.getElementById('consult-count').textContent = items.length;
   const list = document.getElementById('consult-list');
   list.innerHTML = '';
@@ -304,15 +309,17 @@ function renderClientDrawer() {
     list.innerHTML = '<p class="assigned-empty">No consultations yet. Tap “+ New” after your call to record one.</p>';
     return;
   }
+  const height = profileSource?.profile?.height;
   items.forEach((item) => {
+    const isProfileSource = item.id === profileSource?.id;
     const el = document.createElement('div');
     el.className = 'assigned-item consult-item editable';
     el.innerHTML = `
       <div class="assigned-item-top">
-        <strong>${formatShortDate(item.date)}</strong>
-        <span class="assigned-item-meta">Tap to edit</span>
+        <strong>${formatShortDate(item.date)}${isProfileSource ? ' · First consultation' : ''}</strong>
+        <span class="assigned-item-meta">${isProfileSource ? 'Tap to edit visit & profile' : 'Tap to edit'}</span>
       </div>
-      <div class="assigned-item-meta">${consultationDetailsHtml(item)}</div>
+      <div class="assigned-item-meta">${visitDetailsHtml(item, height)}</div>
     `;
     el.addEventListener('click', () => showConsultForm(item));
     list.appendChild(el);
@@ -359,30 +366,38 @@ function syncSurgeryDetails() {
 }
 surgerySelect.addEventListener('change', syncSurgeryDetails);
 
+// Whether the open form includes the profile section, and the client's
+// recorded height (used for BMI when the profile section isn't shown).
+let formShowsProfile = false;
+let profileHeight = null;
+
 function updateBmiPreview() {
-  const bmi = computeBmi(Number(document.getElementById('consult-height').value), Number(document.getElementById('consult-weight').value));
+  const height = formShowsProfile ? Number(document.getElementById('consult-height').value) : Number(profileHeight);
+  const bmi = computeBmi(height, Number(document.getElementById('consult-weight').value));
   document.getElementById('consult-bmi').textContent = bmi ? `BMI: ${bmi}` : '';
 }
 ['consult-height', 'consult-weight'].forEach((id) => document.getElementById(id).addEventListener('input', updateBmiPreview));
 
-// Editing shows that consultation's own values; a new one starts from the
-// client's most recent profile so stable details don't need retyping.
+// The profile is entered once: on a new consultation only if the client has
+// no profile yet, or when editing the consultation that holds it.
 function showConsultForm(item) {
   editingConsultId = item ? item.id : null;
   const client = clients.find((x) => x.id === activeClientId);
-  const latest = consultationsFor(activeClientId)[0];
-  const source = item || latest || null;
-  const p = source?.profile || {};
+  const profileSource = findProfileSource(consultationsFor(activeClientId));
+  formShowsProfile = item ? item.id === profileSource?.id : !profileSource;
+  profileHeight = profileSource?.profile?.height ?? null;
+  const p = (formShowsProfile && item?.profile) || {};
 
   document.getElementById('consult-form-title').textContent = item ? 'Edit Consultation' : 'New Consultation';
-  document.getElementById('consult-prefill-note').hidden = !!item || !latest;
+  document.getElementById('consult-first-note').hidden = !(formShowsProfile && !item);
+  document.getElementById('consult-profile-fields').hidden = !formShowsProfile;
   document.getElementById('consult-date').value = item ? toDateInputValue(item.date) : toDateInputValue(new Date());
 
   document.getElementById('consult-name').value = p.name || client?.name || '';
   document.getElementById('consult-age').value = p.age ?? '';
   document.getElementById('consult-gender').value = p.gender || '';
   document.getElementById('consult-height').value = p.height ?? '';
-  document.getElementById('consult-weight').value = source?.weight ?? '';
+  document.getElementById('consult-weight').value = item?.weight ?? '';
   document.getElementById('consult-comorbidities').value = p.comorbidities || '';
   setMeds(p.medications);
   surgerySelect.value = p.surgeryHistory === 'yes' ? 'yes' : 'no';
@@ -448,7 +463,7 @@ consultForm.addEventListener('submit', async (e) => {
 
   const fields = {
     date,
-    profile: readProfile(),
+    ...(formShowsProfile ? { profile: readProfile() } : {}),
     weight: readNumber('consult-weight'),
     healthNotes: document.getElementById('consult-health').value.trim(),
     dietAdvice: document.getElementById('consult-diet').value.trim(),
