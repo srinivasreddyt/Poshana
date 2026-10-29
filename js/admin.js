@@ -124,6 +124,7 @@ document.querySelectorAll('.admin-nav-item').forEach((btn) => {
     document.getElementById('tab-subscribers').hidden = tab !== 'subscribers';
     document.getElementById('tab-mentors').hidden = tab !== 'mentors';
     document.getElementById('tab-delivery').hidden = tab !== 'delivery';
+    document.getElementById('tab-branches').hidden = tab !== 'branches';
   });
 });
 
@@ -314,6 +315,7 @@ function rerenderBranchScoped() {
   renderMentorTable();
   renderDeStats();
   renderDeTable();
+  renderBranchTable();
 }
 
 function refreshAssigneeFilters() {
@@ -461,6 +463,7 @@ function startListeningSubscribers() {
     renderSubscribersTable();
     renderDeTable();
     renderMentorTable();
+    renderBranchTable();
     if (activeDeId && !deDrawer.hidden) renderAssignedList('de', 'deliveryExecId', activeDeId, closeDeDrawer);
     if (activeMentorId && !mentorDrawer.hidden) renderAssignedList('mentor', 'mentorId', activeMentorId, closeMentorDrawer);
   }, (err) => {
@@ -861,6 +864,7 @@ function startListeningDeliveryExecs() {
     loadingState.hidden = true;
     renderDeStats();
     renderDeTable();
+    renderBranchTable();
     refreshAssigneeFilters();
     renderSubscribersTable();
   }, (err) => {
@@ -1087,6 +1091,7 @@ function startListeningMentors() {
     loadingState.hidden = true;
     renderMentorStats();
     renderMentorTable();
+    renderBranchTable();
     refreshAssigneeFilters();
     renderSubscribersTable();
     if (activeMentorId && !mentorDrawer.hidden) renderMentorLogin(allMentors.find((x) => x.id === activeMentorId));
@@ -1318,6 +1323,156 @@ mentorForm.addEventListener('submit', async (e) => {
       await updateDoc(doc(db, 'mentors', activeMentorId), data);
     } else {
       await addDoc(collection(db, 'mentors'), { ...data, createdAt: serverTimestamp() });
+    }
+    saveStatus.textContent = 'Saved.';
+  } catch (err) {
+    saveStatus.textContent = 'Could not save: ' + err.message;
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
+
+// ============================================
+// Branches tab
+// ============================================
+// Unlike the other tabs, this lists every branch regardless of the sidebar
+// branch switcher. Records store a copy of their branch's name (branchName),
+// so renaming a branch's city updates those copies too.
+function renderBranchTable() {
+  const tbody = document.getElementById('branch-tbody');
+  document.getElementById('branch-stat-total').textContent = allBranches.length;
+  document.getElementById('branch-empty-state').hidden = allBranches.length > 0;
+  tbody.innerHTML = '';
+
+  allBranches.forEach((b) => {
+    const count = (list) => list.filter((x) => x.branchId === b.id).length;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="cell-name">${escapeHtml(branchLabel(b))}</td>
+      <td>${escapeHtml(b.contactNumber || '—')}</td>
+      <td>${escapeHtml(b.email || '—')}</td>
+      <td><span class="badge ${b.status === 'Open' ? 'badge-new' : 'badge-paused'}">${escapeHtml(b.status || '—')}</span></td>
+      <td>${count(allSubscribers)}</td>
+      <td>${count(allMentors)}</td>
+      <td>${count(allDeliveryExecs)}</td>
+    `;
+    tr.addEventListener('click', () => openBranchDrawer(b.id));
+    tbody.appendChild(tr);
+  });
+
+  if (activeBranchId && !branchDrawer.hidden) renderBranchMembers(activeBranchId);
+}
+
+const branchDrawer = document.getElementById('branch-drawer');
+const branchForm = document.getElementById('branch-form');
+let activeBranchId = null;
+
+function openBranchDrawer(id) {
+  activeBranchId = id || null;
+  const b = id ? allBranches.find((x) => x.id === id) : null;
+
+  document.getElementById('branch-drawer-title').textContent = b ? `Edit ${branchLabel(b)}` : 'Add Branch';
+  document.getElementById('branch-city').value = b?.city || '';
+  document.getElementById('branch-contact').value = b?.contactNumber || '';
+  document.getElementById('branch-email').value = b?.email || '';
+  document.getElementById('branch-status').value = b?.status === 'Open' ? 'Open' : 'Coming Soon';
+  document.getElementById('branch-lat').value = b?.location?.lat ?? '';
+  document.getElementById('branch-lng').value = b?.location?.lng ?? '';
+  document.getElementById('branch-save-status').textContent = '';
+
+  renderBranchMembers(id);
+  branchDrawer.hidden = false;
+}
+
+function closeBranchDrawer() {
+  branchDrawer.hidden = true;
+  activeBranchId = null;
+}
+
+document.getElementById('add-branch-btn').addEventListener('click', () => openBranchDrawer(null));
+document.getElementById('branch-drawer-close').addEventListener('click', closeBranchDrawer);
+document.getElementById('branch-drawer-backdrop').addEventListener('click', closeBranchDrawer);
+
+// Lists a branch's subscribers, mentors and delivery executives; clicking one
+// closes this drawer and opens that record's own drawer.
+function renderBranchMembers(branchId) {
+  const section = document.getElementById('branch-members');
+  if (!branchId) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+
+  const groups = [
+    { prefix: 'sub', list: allSubscribers, meta: (s) => [s.phone, s.plan, s.status], open: openSubscriberDrawer },
+    { prefix: 'mentor', list: allMentors, meta: (m) => [m.phone, m.specialization, m.status], open: openMentorDrawer },
+    { prefix: 'de', list: allDeliveryExecs, meta: (d) => [d.phone, d.area, d.vehicle, d.status], open: openDeDrawer },
+  ];
+  groups.forEach(({ prefix, list, meta, open }) => {
+    const members = list.filter((x) => x.branchId === branchId);
+    document.getElementById(`branch-${prefix}-count`).textContent = members.length;
+    const box = document.getElementById(`branch-${prefix}-list`);
+    box.innerHTML = members.length ? '' : '<p class="assigned-empty">None yet.</p>';
+    members.forEach((rec) => {
+      const item = document.createElement('div');
+      item.className = 'assigned-item';
+      item.innerHTML = `
+        <div class="assigned-item-top"><strong>${escapeHtml(rec.name || 'Unnamed')}</strong></div>
+        <div class="assigned-item-meta">${escapeHtml(meta(rec).filter(Boolean).join(' · ') || '—')}</div>
+      `;
+      item.addEventListener('click', () => {
+        closeBranchDrawer();
+        open(rec.id);
+      });
+      box.appendChild(item);
+    });
+  });
+}
+
+branchForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const saveStatus = document.getElementById('branch-save-status');
+  const saveBtn = document.getElementById('branch-save-btn');
+  const city = document.getElementById('branch-city').value.trim();
+  const contactNumber = document.getElementById('branch-contact').value.trim();
+  if (!city || !contactNumber) {
+    saveStatus.textContent = 'City and contact number are required.';
+    return;
+  }
+  const duplicate = allBranches.find((b) => b.id !== activeBranchId && branchLabel(b).toLowerCase() === city.toLowerCase());
+  if (duplicate) {
+    saveStatus.textContent = `A ${city} branch already exists.`;
+    return;
+  }
+
+  const latVal = document.getElementById('branch-lat').value;
+  const lngVal = document.getElementById('branch-lng').value;
+  const data = {
+    city,
+    contactNumber,
+    email: document.getElementById('branch-email').value.trim(),
+    status: document.getElementById('branch-status').value,
+    location: latVal !== '' && lngVal !== '' ? { lat: Number(latVal), lng: Number(lngVal) } : null,
+    updatedAt: serverTimestamp(),
+  };
+
+  saveBtn.disabled = true;
+  saveStatus.textContent = 'Saving…';
+  try {
+    if (activeBranchId) {
+      const previousName = branchLabel(allBranches.find((b) => b.id === activeBranchId) || {});
+      await updateDoc(doc(db, 'branches', activeBranchId), data);
+      if (previousName !== city) {
+        const renamed = [...allSubscribers, ...allMentors, ...allDeliveryExecs]
+          .filter((r) => r.branchId === activeBranchId);
+        const collectionOf = (r) => (allSubscribers.includes(r) ? 'subscribers' : allMentors.includes(r) ? 'mentors' : 'deliveryExecutives');
+        await Promise.all(renamed.map((r) => updateDoc(doc(db, collectionOf(r), r.id), { branchName: city })));
+      }
+    } else {
+      const ref = await addDoc(collection(db, 'branches'), { ...data, createdAt: serverTimestamp() });
+      activeBranchId = ref.id;
+      document.getElementById('branch-drawer-title').textContent = `Edit ${city}`;
+      renderBranchMembers(ref.id);
     }
     saveStatus.textContent = 'Saved.';
   } catch (err) {

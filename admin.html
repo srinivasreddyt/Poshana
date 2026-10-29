@@ -46,6 +46,7 @@
       <button class="admin-nav-item" data-tab="subscribers">👥 Subscribers</button>
       <button class="admin-nav-item" data-tab="mentors">🧑‍⚕️ Mentors</button>
       <button class="admin-nav-item" data-tab="delivery">🛵 Delivery Executives</button>
+      <button class="admin-nav-item" data-tab="branches">🏢 Branches</button>
     </nav>
     <button id="logout-btn" class="admin-logout">Log out</button>
   </aside>
@@ -276,7 +277,99 @@
         <p id="de-empty-state" class="admin-empty" hidden>No delivery executives match these filters.</p>
       </div>
     </section>
+    <section id="tab-branches" hidden>
+      <div class="admin-topbar">
+        <div>
+          <h1>Branches</h1>
+          <p class="form-note mt-0">All branches, regardless of the sidebar branch filter. Shown publicly on the Our Branches page.</p>
+        </div>
+        <div class="admin-stats">
+          <div class="admin-stat"><strong id="branch-stat-total">0</strong><span>Branches</span></div>
+        </div>
+      </div>
+
+      <div class="admin-filters">
+        <div class="admin-filter-spacer"></div>
+        <button id="add-branch-btn" class="btn btn-primary">+ Add Branch</button>
+      </div>
+
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>City</th>
+              <th>Contact</th>
+              <th>Email</th>
+              <th>Status</th>
+              <th>Subscribers</th>
+              <th>Mentors</th>
+              <th>Delivery Execs</th>
+            </tr>
+          </thead>
+          <tbody id="branch-tbody"></tbody>
+        </table>
+        <p id="branch-empty-state" class="admin-empty" hidden>No branches yet.</p>
+      </div>
+    </section>
   </main>
+</div>
+
+<!-- Branch add/edit drawer -->
+<div id="branch-drawer" class="admin-drawer" hidden>
+  <div class="admin-drawer-backdrop" id="branch-drawer-backdrop"></div>
+  <div class="admin-drawer-panel">
+    <button class="admin-drawer-close" id="branch-drawer-close">&times;</button>
+    <h2 id="branch-drawer-title">Add Branch</h2>
+
+    <form id="branch-form">
+      <div class="field">
+        <label for="branch-city">City</label>
+        <input type="text" id="branch-city" required>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="branch-contact">Contact Number</label>
+          <input type="tel" id="branch-contact" required>
+        </div>
+        <div class="field">
+          <label for="branch-status">Status</label>
+          <select id="branch-status">
+            <option value="Coming Soon">Coming Soon</option>
+            <option value="Open">Open</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="branch-email">Email</label>
+        <input type="email" id="branch-email">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="branch-lat">Latitude</label>
+          <input type="number" id="branch-lat" step="any">
+        </div>
+        <div class="field">
+          <label for="branch-lng">Longitude</label>
+          <input type="number" id="branch-lng" step="any">
+        </div>
+      </div>
+      <p class="form-note mt-0">Location powers the "View on map" link on the Our Branches page.</p>
+
+      <div class="drawer-save-row">
+        <button type="submit" id="branch-save-btn" class="btn btn-primary">Save Branch</button>
+        <span id="branch-save-status" class="drawer-save-status"></span>
+      </div>
+    </form>
+
+    <div id="branch-members" class="assigned-section" hidden>
+      <span class="drawer-section-label">Subscribers (<span id="branch-sub-count">0</span>)</span>
+      <div id="branch-sub-list"></div>
+      <span class="drawer-section-label">Mentors (<span id="branch-mentor-count">0</span>)</span>
+      <div id="branch-mentor-list"></div>
+      <span class="drawer-section-label">Delivery Executives (<span id="branch-de-count">0</span>)</span>
+      <div id="branch-de-list"></div>
+    </div>
+  </div>
 </div>
 
 <!-- Detail drawer -->
