@@ -308,6 +308,7 @@ document.getElementById('branch-switcher').addEventListener('change', (e) => {
 });
 
 function rerenderBranchScoped() {
+  syncSubBranchFilter();
   refreshAssigneeFilters();
   renderSubStats();
   renderSubscribersTable();
@@ -570,6 +571,19 @@ subBranchInput.addEventListener('keydown', (e) => {
     }
   }
 });
+
+// The branch filter only makes sense when the sidebar shows all branches;
+// with a single branch selected it is hidden and reset.
+function syncSubBranchFilter() {
+  const showAll = selectedBranch === 'all';
+  subBranchInput.parentElement.hidden = !showAll;
+  if (!showAll) {
+    subState.branchQuery = '';
+    subState.branchId = null;
+    subBranchInput.value = '';
+    hideBranchSuggestions();
+  }
+}
 
 function matchesBranchFilter(sub) {
   if (subState.branchId) return sub.branchId === subState.branchId;
