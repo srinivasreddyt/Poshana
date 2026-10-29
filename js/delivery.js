@@ -470,6 +470,10 @@ function renderSubDrawer() {
   const mapBtn = document.getElementById('sub-map-btn');
   mapBtn.hidden = !s.address && !s.location;
   mapBtn.href = s.address || s.location ? mapsUrl(s) : '#';
+  mapBtn.textContent = s.location ? '📍 Open exact location in Maps' : '📍 Open address in Maps';
+  document.getElementById('sub-location').textContent = s.location
+    ? `${s.location.lat}, ${s.location.lng}`
+    : 'Not saved — map uses the address';
 
   document.getElementById('sub-phone').textContent = s.phone || '—';
   document.getElementById('sub-address').textContent = s.address || '—';
