@@ -512,6 +512,74 @@ document.getElementById('sub-search-input').addEventListener('input', (e) => {
   renderSubscribersTable();
 });
 
+// ---------- Type-ahead ----------
+// A search input with a suggestion list under it. From 2 characters on,
+// suggest(query) returns the items to list ({ id, label, meta? }); every
+// keystroke calls onType(query) and picking an item (click, or Enter for the
+// first) puts its label in the input and calls onPick(item).
+function createTypeahead({ input, list, suggest, emptyText, onType, onPick }) {
+  let picked = false;
+  const query = () => input.value.trim().toLowerCase();
+
+  function hide() {
+    list.hidden = true;
+    input.setAttribute('aria-expanded', 'false');
+  }
+
+  function pick(item) {
+    input.value = item.label;
+    picked = true;
+    hide();
+    onPick(item);
+  }
+
+  function show() {
+    list.innerHTML = '';
+    if (query().length < 2 || picked) return hide();
+    const items = suggest(query());
+    if (!items.length) list.innerHTML = `<li class="typeahead-empty">${escapeHtml(emptyText)}</li>`;
+    items.forEach((item) => {
+      const li = document.createElement('li');
+      li.setAttribute('role', 'option');
+      li.innerHTML = escapeHtml(item.label) + (item.meta ? `<small>${escapeHtml(item.meta)}</small>` : '');
+      // mousedown fires before the input's blur hides the list.
+      li.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        pick(item);
+      });
+      list.appendChild(li);
+    });
+    list.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  }
+
+  input.addEventListener('input', () => {
+    picked = false;
+    show();
+    onType(query());
+  });
+  input.addEventListener('focus', show);
+  input.addEventListener('blur', hide);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hide();
+    if (e.key === 'Enter' && !picked && query().length >= 2) {
+      const [first] = suggest(query());
+      if (first) {
+        e.preventDefault();
+        pick(first);
+      }
+    }
+  });
+
+  return {
+    reset() {
+      input.value = '';
+      picked = false;
+      hide();
+    },
+  };
+}
+
 // ---------- Branch type-ahead filter ----------
 // Used by the Subscribers, Mentors and Delivery Executives tabs. From 2
 // letters on it suggests matching branches and narrows the table to them;
@@ -523,68 +591,31 @@ function matchingBranches(query) {
 
 function createBranchFilter(prefix, onChange) {
   const input = document.getElementById(`${prefix}-branch-filter`);
-  const list = document.getElementById(`${prefix}-branch-suggestions`);
   let query = '';
   let branchId = null;
 
-  function hide() {
-    list.hidden = true;
-    input.setAttribute('aria-expanded', 'false');
-  }
-
-  function select(b) {
-    input.value = branchLabel(b);
-    query = branchLabel(b).toLowerCase();
-    branchId = b.id;
-    hide();
-    onChange();
-  }
-
-  function show() {
-    list.innerHTML = '';
-    if (query.length < 2 || branchId) return hide();
-    const matches = matchingBranches(query);
-    if (!matches.length) list.innerHTML = '<li class="branch-suggestion-empty">No matching branch</li>';
-    matches.forEach((b) => {
-      const li = document.createElement('li');
-      li.setAttribute('role', 'option');
-      li.textContent = branchLabel(b);
-      // mousedown fires before the input's blur hides the list.
-      li.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        select(b);
-      });
-      list.appendChild(li);
-    });
-    list.hidden = false;
-    input.setAttribute('aria-expanded', 'true');
-  }
+  const typeahead = createTypeahead({
+    input,
+    list: document.getElementById(`${prefix}-branch-suggestions`),
+    suggest: (q) => matchingBranches(q).map((b) => ({ id: b.id, label: branchLabel(b) })),
+    emptyText: 'No matching branch',
+    onType: (q) => {
+      query = q;
+      branchId = null;
+      onChange();
+    },
+    onPick: (item) => {
+      query = item.label.toLowerCase();
+      branchId = item.id;
+      onChange();
+    },
+  });
 
   function reset() {
     query = '';
     branchId = null;
-    input.value = '';
-    hide();
+    typeahead.reset();
   }
-
-  input.addEventListener('input', () => {
-    query = input.value.trim().toLowerCase();
-    branchId = null;
-    show();
-    onChange();
-  });
-  input.addEventListener('focus', show);
-  input.addEventListener('blur', hide);
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') hide();
-    if (e.key === 'Enter') {
-      const [first] = matchingBranches(query);
-      if (first && !branchId) {
-        e.preventDefault();
-        select(first);
-      }
-    }
-  });
 
   return {
     reset,
@@ -1669,7 +1700,7 @@ function formatMealTime(ts) {
 
 // The period is picked like the other tabs' date filters (all time / day /
 // month / year), plus a custom from–to range; it resolves to [from, to].
-const reportState = { from: '', to: '', search: '', execFilter: 'all' };
+const reportState = { from: '', to: '', search: '', subscriberId: null, execFilter: 'all' };
 let reportDeliveries = []; // delivery docs in [from, to]
 let unsubscribeReportSnapshot = null;
 let reportListenedRange = '';
@@ -1751,9 +1782,31 @@ reportPeriodType.addEventListener('change', () => {
 [reportDayInput, reportMonthInput, reportYearInput, reportFromInput, reportToInput].forEach((input) => {
   input.addEventListener('input', applyReportPeriod);
 });
-document.getElementById('report-search').addEventListener('input', (e) => {
-  reportState.search = e.target.value.trim().toLowerCase();
-  renderReport();
+// Typing narrows the report to matching names / phones and lists them;
+// picking one shows just that subscriber.
+function matchesNameOrPhone(sub, query) {
+  return `${sub.name || ''} ${sub.phone || ''}`.toLowerCase().includes(query);
+}
+
+createTypeahead({
+  input: document.getElementById('report-search'),
+  list: document.getElementById('report-search-suggestions'),
+  suggest: (q) => allSubscribers
+    .filter((s) => inBranch(s) && matchesNameOrPhone(s, q))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    .slice(0, 8)
+    .map((s) => ({ id: s.id, label: s.name || 'Unnamed', meta: [s.phone, s.branchName, s.plan].filter(Boolean).join(' · ') })),
+  emptyText: 'No matching subscriber',
+  onType: (q) => {
+    reportState.search = q;
+    reportState.subscriberId = null;
+    renderReport();
+  },
+  onPick: (item) => {
+    reportState.search = '';
+    reportState.subscriberId = item.id;
+    renderReport();
+  },
 });
 document.getElementById('report-exec-filter').addEventListener('change', (e) => {
   reportState.execFilter = e.target.value;
@@ -1855,13 +1908,13 @@ function buildReportRow(sub, days) {
 }
 
 function getReportRows() {
-  const { from, to, search, execFilter } = reportState;
+  const { from, to, search, execFilter, subscriberId } = reportState;
   if (!from || !to || from > to) return [];
   const bySub = deliveriesBySubscriber();
   return allSubscribers
     .filter(inBranch)
     .filter((s) => matchesAssignee(execFilter, s.deliveryExecId))
-    .filter((s) => !search || `${s.name || ''} ${s.phone || ''}`.toLowerCase().includes(search))
+    .filter((s) => (subscriberId ? s.id === subscriberId : !search || matchesNameOrPhone(s, search)))
     .map((s) => buildReportRow(s, bySub.get(s.id) || new Map()))
     .filter((r) => r.daysDue > 0 || r.delivered > 0)
     .sort((a, b) => (a.sub.name || '').localeCompare(b.sub.name || ''));

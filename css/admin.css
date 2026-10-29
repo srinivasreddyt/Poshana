@@ -258,13 +258,14 @@
 }
 .meal-check input:disabled { cursor: not-allowed; opacity: 0.45; }
 
-.branch-search { position: relative; }
-.branch-search input[type="search"] { width: 100%; }
-.branch-suggestions {
+.typeahead { position: relative; }
+.typeahead input[type="search"] { width: 100%; }
+.typeahead-suggestions {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
   right: 0;
+  min-width: min(280px, 90vw);
   z-index: 20;
   margin: 0;
   padding: 4px 0;
@@ -274,14 +275,19 @@
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow);
 }
-.branch-suggestions li {
+.typeahead-suggestions li {
   padding: 8px 12px;
   cursor: pointer;
   font-size: 0.92rem;
 }
-.branch-suggestions li:hover { background: var(--green-100); }
-.branch-suggestions .branch-suggestion-empty { cursor: default; color: var(--text-muted); }
-.branch-suggestions .branch-suggestion-empty:hover { background: none; }
+.typeahead-suggestions li small {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.typeahead-suggestions li:hover { background: var(--green-100); }
+.typeahead-suggestions .typeahead-empty { cursor: default; color: var(--text-muted); }
+.typeahead-suggestions .typeahead-empty:hover { background: none; }
 
 .admin-filter-spacer { flex-grow: 1; }
 

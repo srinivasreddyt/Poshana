@@ -128,9 +128,9 @@
 
         <input type="search" id="sub-search-input" placeholder="Search name or phone…">
 
-        <div class="branch-search">
+        <div class="typeahead">
           <input type="search" id="sub-branch-filter" placeholder="Branch (type 2 letters)…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="sub-branch-suggestions">
-          <ul id="sub-branch-suggestions" class="branch-suggestions" role="listbox" hidden></ul>
+          <ul id="sub-branch-suggestions" class="typeahead-suggestions" role="listbox" hidden></ul>
         </div>
 
         <select id="sub-plan-filter">
@@ -207,9 +207,9 @@
 
         <input type="search" id="mentor-search-input" placeholder="Search name, phone or specialization…">
 
-        <div class="branch-search">
+        <div class="typeahead">
           <input type="search" id="mentor-branch-filter" placeholder="Branch (type 2 letters)…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="mentor-branch-suggestions">
-          <ul id="mentor-branch-suggestions" class="branch-suggestions" role="listbox" hidden></ul>
+          <ul id="mentor-branch-suggestions" class="typeahead-suggestions" role="listbox" hidden></ul>
         </div>
 
         <div class="admin-filter-spacer"></div>
@@ -256,9 +256,9 @@
 
         <input type="search" id="de-search-input" placeholder="Search name, phone or area…">
 
-        <div class="branch-search">
+        <div class="typeahead">
           <input type="search" id="de-branch-filter" placeholder="Branch (type 2 letters)…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="de-branch-suggestions">
-          <ul id="de-branch-suggestions" class="branch-suggestions" role="listbox" hidden></ul>
+          <ul id="de-branch-suggestions" class="typeahead-suggestions" role="listbox" hidden></ul>
         </div>
 
         <select id="de-vehicle-filter">
@@ -324,7 +324,10 @@
           <label class="report-range">From <input type="date" id="report-from"></label>
           <label class="report-range">To <input type="date" id="report-to"></label>
         </span>
-        <input type="search" id="report-search" placeholder="Search name or phone…">
+        <div class="typeahead">
+          <input type="search" id="report-search" placeholder="Search name or phone…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="report-search-suggestions">
+          <ul id="report-search-suggestions" class="typeahead-suggestions" role="listbox" hidden></ul>
+        </div>
         <select id="report-exec-filter" aria-label="Delivery executive"></select>
         <div class="admin-filter-spacer"></div>
         <button type="button" id="report-csv-btn" class="btn btn-outline">⬇ Download CSV</button>
