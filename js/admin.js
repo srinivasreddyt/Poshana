@@ -2111,30 +2111,261 @@ function renderReport() {
   if (activeReportSubId && !reportDrawer.hidden) renderReportDrawer();
 }
 
-// ---------- CSV ----------
-function downloadCsv(filename, rows) {
-  const csv = rows.map((row) => row.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
-  const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+// ---------- Excel export ----------
+// Reports download as formatted .xlsx workbooks (title, details block,
+// styled header, column widths, frozen header, filters, totals). ExcelJS is
+// only loaded the first time someone downloads.
+const EXCELJS_URL = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
+let excelJsPromise = null;
+
+function loadExcelJs() {
+  excelJsPromise ??= new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = EXCELJS_URL;
+    script.onload = () => resolve(window.ExcelJS);
+    script.onerror = () => {
+      excelJsPromise = null;
+      reject(new Error('Could not load the Excel library. Check your internet connection.'));
+    };
+    document.head.appendChild(script);
+  });
+  return excelJsPromise;
+}
+
+const XL_COLORS = { green: 'FF2F5233', light: 'FFE9F0E0', cream: 'FFF7F2E7', border: 'FFDCD2B8', red: 'FFB4432F', muted: 'FF5C5C4E', white: 'FFFFFFFF' };
+
+// Excel stores dates without a time zone, so build them at UTC midnight.
+function excelDate(value) {
+  if (!value) return null;
+  const [y, m, d] = value.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+// Delivery rate as a fraction for Excel's % format (null when nothing due).
+function deliveryRateValue({ expected, missed, pending }) {
+  const settled = expected - pending;
+  return settled ? (settled - missed) / settled : null;
+}
+
+// One worksheet: a title, "label | value" details, then a table with a
+// styled header, alternating row shading and an optional totals row.
+// columns: [{ header, width, align?, numFmt? }]; styleRow(row, values) can
+// add per-row touches.
+function addReportSheet(workbook, name, { title, info, columns, rows, totals, styleRow }) {
+  const ws = workbook.addWorksheet(name);
+  const lastCol = columns.length;
+  columns.forEach((c, i) => { ws.getColumn(i + 1).width = c.width; });
+
+  ws.mergeCells(1, 1, 1, lastCol);
+  const titleCell = ws.getCell(1, 1);
+  titleCell.value = title;
+  titleCell.font = { bold: true, size: 16, color: { argb: XL_COLORS.green } };
+  ws.getRow(1).height = 28;
+
+  info.forEach(([label, value], i) => {
+    const rowNum = i + 2;
+    const labelCell = ws.getCell(rowNum, 1);
+    labelCell.value = label;
+    labelCell.font = { bold: true, color: { argb: XL_COLORS.muted } };
+    ws.mergeCells(rowNum, 2, rowNum, Math.min(lastCol, 4));
+    const valueCell = ws.getCell(rowNum, 2);
+    valueCell.value = value;
+    valueCell.alignment = { horizontal: 'left' };
+  });
+
+  const headerRowNum = info.length + 3;
+  const headerRow = ws.getRow(headerRowNum);
+  headerRow.height = 32;
+  columns.forEach((c, i) => {
+    const cell = headerRow.getCell(i + 1);
+    cell.value = c.header;
+    cell.font = { bold: true, color: { argb: XL_COLORS.white } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: XL_COLORS.green } };
+    cell.alignment = { vertical: 'middle', horizontal: c.align || 'left', wrapText: true };
+  });
+
+  const rowBorder = { bottom: { style: 'thin', color: { argb: XL_COLORS.border } } };
+  rows.forEach((values, idx) => {
+    const row = ws.getRow(headerRowNum + 1 + idx);
+    columns.forEach((c, i) => {
+      const cell = row.getCell(i + 1);
+      cell.value = values[i] ?? null;
+      if (c.numFmt) cell.numFmt = c.numFmt;
+      cell.alignment = { vertical: 'middle', horizontal: c.align || 'left' };
+      cell.border = rowBorder;
+      if (idx % 2 === 1) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: XL_COLORS.cream } };
+    });
+    styleRow?.(row, values);
+  });
+
+  if (totals) {
+    const row = ws.getRow(headerRowNum + rows.length + 1);
+    columns.forEach((c, i) => {
+      const cell = row.getCell(i + 1);
+      cell.value = totals[i] ?? null;
+      if (c.numFmt) cell.numFmt = c.numFmt;
+      cell.font = { bold: true };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: XL_COLORS.light } };
+      cell.border = { top: { style: 'medium', color: { argb: XL_COLORS.green } } };
+      cell.alignment = { horizontal: c.align || 'left' };
+    });
+  }
+
+  ws.views = [{ state: 'frozen', ySplit: headerRowNum }];
+  if (rows.length) ws.autoFilter = { from: { row: headerRowNum, column: 1 }, to: { row: headerRowNum + rows.length, column: lastCol } };
+  return ws;
+}
+
+async function downloadWorkbook(workbook, filename) {
+  const buffer = await workbook.xlsx.writeBuffer();
+  const url = URL.createObjectURL(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-document.getElementById('report-csv-btn').addEventListener('click', () => {
-  const rows = getReportRows();
-  downloadCsv(`poshana-deliveries-${reportState.from}-to-${reportState.to}.csv`, [
-    ['Name', 'Phone', 'Branch', 'Plan', 'Executive', 'Days due', 'Breakfast', 'Lunch', 'Dinner', 'Delivered', 'Expected', 'Missed', 'Delivery rate', 'Last delivery'],
-    ...rows.map((r) => [
-      r.sub.name, r.sub.phone, r.sub.branchName, r.sub.plan, r.sub.deliveryExecName, r.daysDue,
-      r.counts.breakfast, r.counts.lunch, r.counts.dinner, r.delivered, r.expected, r.missed,
-      deliveryRate(r), r.lastDelivery,
+function reportFileName(...parts) {
+  return parts.join(' ').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.xlsx';
+}
+
+function generatedAt() {
+  return new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+// Shows "Preparing…" on the button while the workbook is built.
+async function withBusyButton(btn, fn) {
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Preparing…';
+  try {
+    await fn();
+  } catch (err) {
+    alert('Could not download: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
+// One entry per meal (or one per Sunday) for a subscriber's report days.
+function dailyLogEntries(sub, days) {
+  const today = toDateInputValue(new Date());
+  const entries = [];
+  reportDays(sub, days).forEach((date) => {
+    const rec = days.get(date) || {};
+    const day = parseDateInput(date).toLocaleDateString('en-IN', { weekday: 'long' });
+    if (isSundayValue(date) && !MEALS.some(([meal]) => rec[meal])) {
+      entries.push({ date, day, meal: 'All meals', status: 'Sunday — no delivery', by: '', time: '' });
+      return;
+    }
+    MEALS.forEach(([meal, label]) => {
+      const done = rec[meal];
+      entries.push({
+        date,
+        day,
+        meal: label,
+        status: done ? 'Delivered' : date > today ? 'Upcoming' : date === today ? 'Pending' : 'Missed',
+        by: done?.byName || '',
+        time: done ? formatMealTime(done.at) : '',
+      });
+    });
+  });
+  return entries;
+}
+
+// Colours the status cell of a daily log row.
+function styleStatusCell(cell) {
+  const colors = { Delivered: XL_COLORS.green, Missed: XL_COLORS.red };
+  cell.font = { bold: cell.value === 'Delivered' || cell.value === 'Missed', color: { argb: colors[cell.value] || XL_COLORS.muted } };
+}
+
+const SUMMARY_COLUMNS = [
+  { header: 'Subscriber', width: 22 },
+  { header: 'Phone', width: 14 },
+  { header: 'Branch', width: 14 },
+  { header: 'Plan', width: 18 },
+  { header: 'Status', width: 11 },
+  { header: 'Delivery executive', width: 20 },
+  { header: 'Days due', width: 10, align: 'center' },
+  { header: 'Breakfasts', width: 11, align: 'center' },
+  { header: 'Lunches', width: 10, align: 'center' },
+  { header: 'Dinners', width: 10, align: 'center' },
+  { header: 'Delivered', width: 11, align: 'center' },
+  { header: 'Expected', width: 11, align: 'center' },
+  { header: 'Missed', width: 10, align: 'center' },
+  { header: 'Pending today', width: 11, align: 'center' },
+  { header: 'Delivery rate', width: 11, align: 'center', numFmt: '0%' },
+  { header: 'Last delivery', width: 15, align: 'center', numFmt: 'dd mmm yyyy' },
+];
+const MISSED_COL = 13;
+
+const LOG_COLUMNS = [
+  { header: 'Date', width: 14, numFmt: 'dd mmm yyyy' },
+  { header: 'Day', width: 12 },
+  { header: 'Subscriber', width: 22 },
+  { header: 'Branch', width: 14 },
+  { header: 'Meal', width: 12 },
+  { header: 'Status', width: 20 },
+  { header: 'Delivered by', width: 20 },
+  { header: 'Time', width: 11 },
+];
+
+document.getElementById('report-csv-btn').addEventListener('click', (e) => withBusyButton(e.currentTarget, async () => {
+  const ExcelJS = await loadExcelJs();
+  const rows = getReportRows().sort((a, b) =>
+    (a.sub.branchName || '').localeCompare(b.sub.branchName || '') || (a.sub.name || '').localeCompare(b.sub.name || ''));
+  const sum = (key) => rows.reduce((n, r) => n + r[key], 0);
+  const sumMeal = (meal) => rows.reduce((n, r) => n + r.counts[meal], 0);
+  const totals = { expected: sum('expected'), missed: sum('missed'), pending: sum('pending') };
+  const branch = selectedBranch === 'all' ? 'All branches' : branchLabel(allBranches.find((b) => b.id === selectedBranch) || {});
+  const execName = document.getElementById('report-exec-filter').selectedOptions[0]?.textContent || 'All Executives';
+  const info = [
+    ['Period', reportPeriodLabel()],
+    ['Branch', branch],
+    ['Delivery executive', execName],
+    ['Generated', generatedAt()],
+  ];
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Poshaná';
+  addReportSheet(workbook, 'Summary', {
+    title: 'Poshaná — Delivery Report',
+    info: [...info, ['Subscribers', rows.length]],
+    columns: SUMMARY_COLUMNS,
+    rows: rows.map((r) => [
+      r.sub.name, r.sub.phone, r.sub.branchName, r.sub.plan, subStatusLabel[r.sub.status] || r.sub.status,
+      r.sub.deliveryExecName || 'Unassigned', r.daysDue,
+      r.counts.breakfast, r.counts.lunch, r.counts.dinner, r.delivered,
+      r.expected, r.missed, r.pending, deliveryRateValue(r), excelDate(r.lastDelivery),
     ]),
-  ]);
-});
+    totals: ['TOTAL', '', '', '', '', '', sum('daysDue'),
+      sumMeal('breakfast'), sumMeal('lunch'), sumMeal('dinner'), sum('delivered'),
+      totals.expected, totals.missed, totals.pending, deliveryRateValue(totals), null],
+    styleRow: (row, values) => {
+      if (values[MISSED_COL - 1] > 0) row.getCell(MISSED_COL).font = { bold: true, color: { argb: XL_COLORS.red } };
+    },
+  });
+
+  // Every meal of every subscriber in the report, in date order.
+  const bySub = deliveriesBySubscriber();
+  const log = rows.flatMap((r) => dailyLogEntries(r.sub, bySub.get(r.sub.id) || new Map())
+    .map((entry) => ({ ...entry, name: r.sub.name || 'Unnamed', branch: r.sub.branchName || '' })));
+  const mealOrder = { Breakfast: 0, Lunch: 1, Dinner: 2, 'All meals': 3 };
+  log.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name) || mealOrder[a.meal] - mealOrder[b.meal]);
+  addReportSheet(workbook, 'Daily log', {
+    title: 'Poshaná — Daily Delivery Log',
+    info,
+    columns: LOG_COLUMNS,
+    rows: log.map((e) => [excelDate(e.date), e.day, e.name, e.branch, e.meal, e.status, e.by, e.time]),
+    styleRow: (row) => styleStatusCell(row.getCell(6)),
+  });
+
+  await downloadWorkbook(workbook, reportFileName('poshana delivery report', reportPeriodLabel()));
+}));
 
 // ---------- Report drawer (one subscriber, day by day) ----------
 const reportDrawer = document.getElementById('report-drawer');
@@ -2217,23 +2448,41 @@ function renderReportDrawer() {
   });
 }
 
-document.getElementById('report-drawer-csv-btn').addEventListener('click', () => {
+document.getElementById('report-drawer-csv-btn').addEventListener('click', (e) => withBusyButton(e.currentTarget, async () => {
   const sub = allSubscribers.find((s) => s.id === activeReportSubId);
   if (!sub) return;
+  const ExcelJS = await loadExcelJs();
   const days = deliveriesBySubscriber().get(sub.id) || new Map();
-  const today = toDateInputValue(new Date());
-  const header = ['Date', 'Day'];
-  MEALS.forEach(([, label]) => header.push(label, `${label} by`, `${label} time`));
-  const rows = reportDays(sub, days).map((date) => {
-    const rec = days.get(date) || {};
-    const out = [date, parseDateInput(date).toLocaleDateString('en-IN', { weekday: 'short' })];
-    MEALS.forEach(([meal]) => {
-      const done = rec[meal];
-      const status = done ? 'Delivered' : isSundayValue(date) ? 'Sunday' : date > today ? '' : date === today ? 'Pending' : 'Missed';
-      out.push(status, done?.byName || '', done ? formatMealTime(done.at) : '');
-    });
-    return out;
+  const row = buildReportRow(sub, days);
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Poshaná';
+  addReportSheet(workbook, 'Deliveries', {
+    title: `Poshaná — Delivery Report: ${sub.name || 'Subscriber'}`,
+    info: [
+      ['Period', reportPeriodLabel()],
+      ['Phone', sub.phone || ''],
+      ['Branch', sub.branchName || ''],
+      ['Plan', sub.plan || ''],
+      ['Subscription', `${formatShortDate(sub.startDate)} – ${formatShortDate(sub.endDate)}`],
+      ['Delivery executive', sub.deliveryExecName || 'Unassigned'],
+      ['Delivered', `${row.delivered} of ${row.expected} expected`],
+      ['By meal', `Breakfast ${row.counts.breakfast} · Lunch ${row.counts.lunch} · Dinner ${row.counts.dinner}`],
+      ['Missed', row.missed],
+      ['Delivery rate', deliveryRate(row)],
+      ['Generated', generatedAt()],
+    ],
+    columns: [
+      { header: 'Date', width: 14, numFmt: 'dd mmm yyyy' },
+      { header: 'Day', width: 12 },
+      { header: 'Meal', width: 12 },
+      { header: 'Status', width: 22 },
+      { header: 'Delivered by', width: 20 },
+      { header: 'Time', width: 11 },
+    ],
+    rows: dailyLogEntries(sub, days).map((e) => [excelDate(e.date), e.day, e.meal, e.status, e.by, e.time]),
+    styleRow: (r) => styleStatusCell(r.getCell(4)),
   });
-  const safeName = (sub.name || 'subscriber').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-  downloadCsv(`poshana-deliveries-${safeName}-${reportState.from}-to-${reportState.to}.csv`, [header, ...rows]);
-});
+
+  await downloadWorkbook(workbook, reportFileName('poshana delivery report', sub.name || 'subscriber', reportPeriodLabel()));
+}));
