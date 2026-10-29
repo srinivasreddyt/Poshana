@@ -71,7 +71,10 @@
         <button class="status-pill" data-status-filter="paused">Paused</button>
       </div>
       <select id="exec-filter" aria-label="Delivery executive"></select>
-      <input type="search" id="search-input" placeholder="Search name, phone or address…">
+      <div class="typeahead">
+        <input type="search" id="search-input" placeholder="Search name, phone or address…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="search-suggestions">
+        <ul id="search-suggestions" class="typeahead-suggestions" role="listbox" hidden></ul>
+      </div>
     </div>
 
     <p id="date-note" class="date-note" hidden></p>

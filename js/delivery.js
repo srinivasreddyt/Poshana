@@ -12,6 +12,8 @@
 // null). Any executive in the branch can tick them, so they can cover for
 // each other. There are no deliveries on Sundays.
 // ============================================
+import { createTypeahead } from './typeahead.js';
+
 const firebaseConfig = {
   apiKey: "AIzaSyA6q2cN75_iHY9-hzyb6C6gObjrUBFOH94",
   authDomain: "poshana-36204.firebaseapp.com",
@@ -263,7 +265,8 @@ const statusBadgeClass = { active: 'badge-new', paused: 'badge-paused', cancelle
 // ---------- Subscriber list ----------
 // execFilter: 'mine' (default), 'all', 'unassigned', or another executive's id.
 // date: 'YYYY-MM-DD' (defaults to today); empty shows every subscriber.
-const state = { status: 'all', execFilter: 'mine', search: '', date: ymd(new Date()) };
+// subscriberId: set when a subscriber is picked from the search suggestions.
+const state = { status: 'all', execFilter: 'mine', search: '', subscriberId: null, date: ymd(new Date()) };
 
 const dateInput = document.getElementById('date-filter');
 dateInput.value = state.date;
@@ -298,9 +301,30 @@ execFilter.addEventListener('change', () => {
   renderTable();
 });
 
-document.getElementById('search-input').addEventListener('input', (e) => {
-  state.search = e.target.value.trim().toLowerCase();
-  renderTable();
+function matchesSearch(sub, query) {
+  return `${sub.name || ''} ${sub.phone || ''} ${sub.address || ''}`.toLowerCase().includes(query);
+}
+
+// Typing narrows the list and suggests matching subscribers (among those
+// the other filters show); picking one shows just that subscriber.
+createTypeahead({
+  input: document.getElementById('search-input'),
+  list: document.getElementById('search-suggestions'),
+  suggest: (q) => filteredSubs({ ignoreSearch: true })
+    .filter((s) => matchesSearch(s, q))
+    .slice(0, 8)
+    .map((s) => ({ id: s.id, label: s.name || 'Unnamed', meta: [s.phone, s.address].filter(Boolean).join(' · ') })),
+  emptyText: 'No matching subscriber',
+  onType: (q) => {
+    state.search = q;
+    state.subscriberId = null;
+    renderTable();
+  },
+  onPick: (item) => {
+    state.search = '';
+    state.subscriberId = item.id;
+    renderTable();
+  },
 });
 
 // Other executives are taken from the subscribers they deliver to.
@@ -342,15 +366,21 @@ function render() {
   if (activeSubId && !subDrawer.hidden) renderSubDrawer();
 }
 
-function renderTable() {
-  const tbody = document.getElementById('subs-tbody');
-  const filtered = subs.filter((s) => {
+function filteredSubs({ ignoreSearch = false } = {}) {
+  return subs.filter((s) => {
     if (state.date && !coversDate(s, state.date)) return false;
     if (state.status !== 'all' && (s.status || 'active') !== state.status) return false;
     if (!matchesExecFilter(s)) return false;
-    if (state.search && !`${s.name || ''} ${s.phone || ''} ${s.address || ''}`.toLowerCase().includes(state.search)) return false;
+    if (ignoreSearch) return true;
+    if (state.subscriberId && s.id !== state.subscriberId) return false;
+    if (state.search && !matchesSearch(s, state.search)) return false;
     return true;
   });
+}
+
+function renderTable() {
+  const tbody = document.getElementById('subs-tbody');
+  const filtered = filteredSubs();
 
   const showMeals = !!state.date && !isSunday(state.date);
   document.querySelectorAll('.meal-col').forEach((th) => { th.hidden = !showMeals; });
