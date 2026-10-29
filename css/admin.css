@@ -192,6 +192,31 @@
 }
 .admin-filters input[type="search"] { min-width: 180px; }
 
+.branch-search { position: relative; }
+.branch-search input[type="search"] { width: 100%; }
+.branch-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+.branch-suggestions li {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.92rem;
+}
+.branch-suggestions li:hover { background: var(--green-100); }
+.branch-suggestions .branch-suggestion-empty { cursor: default; color: var(--text-muted); }
+.branch-suggestions .branch-suggestion-empty:hover { background: none; }
+
 .admin-filter-spacer { flex-grow: 1; }
 
 .btn-clear-filters {

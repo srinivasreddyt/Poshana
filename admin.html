@@ -127,6 +127,11 @@
 
         <input type="search" id="sub-search-input" placeholder="Search name or phone…">
 
+        <div class="branch-search">
+          <input type="search" id="sub-branch-filter" placeholder="Branch (type 2 letters)…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="sub-branch-suggestions">
+          <ul id="sub-branch-suggestions" class="branch-suggestions" role="listbox" hidden></ul>
+        </div>
+
         <select id="sub-plan-filter">
           <option value="all">All Plans</option>
           <option value="Essential">Essential</option>
